@@ -169,16 +169,30 @@ test("release rules reject an Actions bypass and a non-main environment", () => 
       name: "gd-clerk-release-tags",
       target: "tag",
       enforcement: "active",
-      conditions: { ref_name: { include: ["refs/tags/v*"] } },
-      rules: [{ type: "creation" }],
-      bypass_actors: [{ actor_id: 42, actor_type: "User" }],
+      conditions: { ref_name: { include: ["refs/tags/v*"], exclude: [] } },
+      rules: [{ type: "creation" }, { type: "update" }, { type: "deletion" }],
+      bypass_actors: [{ actor_id: 42, actor_type: "Integration", bypass_mode: "always" }],
     },
   };
-  assert.equal(assertReleaseRules(ok), true);
+  const pinned = { publisherActorId: 42 };
+  assert.equal(assertReleaseRules(ok, pinned), true);
+  assert.throws(() => assertReleaseRules(ok), /not pinned/);
   assert.throws(() => assertReleaseRules({
     ...ok,
     ruleset: { ...ok.ruleset, bypass_actors: [{ actor_id: 15368, actor_type: "Integration" }] },
-  }), /GitHub Actions/);
+  }, pinned), /GitHub Actions/);
+  assert.throws(() => assertReleaseRules({
+    ...ok,
+    ruleset: { ...ok.ruleset, bypass_actors: [{ actor_id: 5, actor_type: "RepositoryRole" }] },
+  }, pinned), /admin, owner, or role/);
+  assert.throws(() => assertReleaseRules({
+    ...ok,
+    ruleset: { ...ok.ruleset, bypass_actors: [{ actor_id: null, actor_type: "OrganizationAdmin" }] },
+  }, pinned), /admin, owner, or role/);
+  assert.throws(() => assertReleaseRules({
+    ...ok,
+    ruleset: { ...ok.ruleset, rules: [{ type: "creation" }] },
+  }, pinned), /restrict update/);
   assert.throws(() => assertReleaseRules({
     ...ok,
     policies: { branch_policies: [{ name: "feature", type: "branch" }] },
