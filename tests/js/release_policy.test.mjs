@@ -4,6 +4,7 @@ import { join, dirname } from "node:path";
 import { test } from "node:test";
 import { fileURLToPath } from "node:url";
 import { spawnSync } from "node:child_process";
+import { FIXED_ZIP_STAMP, zipDosStamp } from "../../scripts/zip-stamp.mjs";
 import { buildCandidate } from "../../scripts/candidate-provenance.mjs";
 import { couplingHits } from "../../scripts/consumer-boundary.mjs";
 import { assertReleaseIdentity } from "../../scripts/check-release-identity.mjs";
@@ -25,6 +26,19 @@ test("release guards reject a non-main ref and a checksum mismatch", () => {
   assert.throws(() => assertChecksum(sha, "d".repeat(64)), /checksum/);
   assert.throws(() => assertChecksum("", sha), /checksum/);
   assert.doesNotThrow(() => assertChecksum(sha, sha));
+});
+
+test("zip stamp stays at UTC epoch in every timezone", () => {
+  assert.deepEqual(FIXED_ZIP_STAMP, { time: 0, day: 33 });
+  const script = "import { zipDosStamp } from './scripts/zip-stamp.mjs'; const stamp = zipDosStamp(new Date(Date.UTC(1980,0,1,0,0,0))); if (stamp.time !== 0 || stamp.day !== 33) process.exit(1);";
+  for (const tz of ["UTC", "Pacific/Auckland", "America/Los_Angeles"]) {
+    const ran = spawnSync(process.execPath, ["--input-type=module", "-e", script], {
+      cwd: root,
+      encoding: "utf8",
+      env: { ...process.env, TZ: tz },
+    });
+    assert.equal(ran.status, 0, ran.stderr);
+  }
 });
 
 test("publish hold ignores sentinel files and acceptance inputs", () => {

@@ -43,7 +43,9 @@ jobs:
       - name: Installed ZIP editor lifecycle
         run: node scripts/editor-lifecycle.mjs dist/@aviorstudio_gd-clerk.zip
       - name: Record candidate provenance
-        run: node scripts/candidate-provenance.mjs --zip dist/@aviorstudio_gd-clerk.zip --commit "$GITHUB_SHA" --out dist/CANDIDATE.json
+        env:
+          CANDIDATE_COMMIT: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+        run: node scripts/candidate-provenance.mjs --zip dist/@aviorstudio_gd-clerk.zip --commit "$CANDIDATE_COMMIT" --out dist/CANDIDATE.json
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: gd-clerk-addon

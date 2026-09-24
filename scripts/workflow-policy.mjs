@@ -74,6 +74,9 @@ export function assertWorkflows(root) {
   for (const item of ["bash scripts/run-godot-tests.sh", "node scripts/editor-lifecycle.mjs", "node scripts/verify-zip.mjs", "node scripts/candidate-provenance.mjs"]) {
     if (!ci.includes(item)) throw new Error(`CI missing ${item}`);
   }
+  if (!ci.includes("github.event.pull_request.head.sha")) {
+    throw new Error("CI candidate provenance must bind the branch commit, not the merge commit");
+  }
 }
 
 if (process.argv[1] && process.argv[1].endsWith("workflow-policy.mjs")) {

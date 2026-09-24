@@ -3,6 +3,7 @@ import { mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from "n
 import { join, relative } from "node:path";
 import { deflateRawSync } from "node:zlib";
 import { verifyZip } from "./verify-zip.mjs";
+import { FIXED_ZIP_STAMP } from "./zip-stamp.mjs";
 
 const root = new URL("..", import.meta.url).pathname;
 const addon = join(root, "addons/@aviorstudio_gd-clerk");
@@ -52,13 +53,7 @@ entries.push({
   sha256: createHash("sha256").update(manifestBytes).digest("hex"),
 });
 
-function dosTime(date) {
-  const time = (date.getHours() << 11) | (date.getMinutes() << 5) | Math.floor(date.getSeconds() / 2);
-  const day = ((date.getFullYear() - 1980) << 9) | ((date.getMonth() + 1) << 5) | date.getDate();
-  return { time, day };
-}
-
-const fixed = dosTime(new Date(Date.UTC(1980, 0, 1, 0, 0, 0)));
+const fixed = FIXED_ZIP_STAMP;
 const parts = [];
 const central = [];
 let offset = 0;
