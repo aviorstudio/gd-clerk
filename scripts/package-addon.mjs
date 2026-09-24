@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import { mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { join, relative } from "node:path";
 import { deflateRawSync } from "node:zlib";
+import { verifyZip } from "./verify-zip.mjs";
 
 const root = new URL("..", import.meta.url).pathname;
 const addon = join(root, "addons/@aviorstudio_gd-clerk");
@@ -19,6 +20,20 @@ function walk(dir, acc = []) {
 }
 
 const files = walk(addon);
+const allow = JSON.parse(readFileSync(join(root, "scripts/package-allowlist.json"), "utf8"));
+const relativeFiles = files.map((path) => relative(addon, path).replaceAll("\\", "/")).sort();
+const expected = [...allow.files].sort();
+if (
+  allow.addon_files !== 33 ||
+  allow.zip_entries !== 34 ||
+  expected.length !== 33 ||
+  relativeFiles.join("\n") !== expected.join("\n")
+) {
+  console.error("addon files are not the closed 33-file allowlist");
+  for (const name of relativeFiles) if (!expected.includes(name)) console.error("extra", name);
+  for (const name of expected) if (!relativeFiles.includes(name)) console.error("missing", name);
+  process.exit(1);
+}
 const entries = files.map((path) => {
   const data = readFileSync(path);
   const name = "addons/@aviorstudio_gd-clerk/" + relative(addon, path).replaceAll("\\", "/");
@@ -26,6 +41,8 @@ const entries = files.map((path) => {
 });
 const manifest = {
   plugin_version: "0.1.0",
+  closed: true,
+  zip_entries: 34,
   files: entries.map(({ name, sha256, data }) => ({ path: name, sha256, bytes: data.length })),
 };
 const manifestBytes = Buffer.from(JSON.stringify(manifest, null, 2) + "\n");
@@ -104,6 +121,7 @@ const sha = createHash("sha256").update(zip).digest("hex");
 writeFileSync(zipPath + ".sha256", sha + "  @aviorstudio_gd-clerk.zip\n");
 writeFileSync(join(dist, "PACKAGE_MANIFEST.json"), manifestBytes);
 console.log(sha);
+verifyZip(zipPath);
 
 function crc32(buf) {
   let crc = ~0;

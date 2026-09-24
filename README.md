@@ -2,7 +2,7 @@
 
 Godot 4.7 addon for web email-code sign-in and sign-up through the pinned official `@clerk/clerk-js@6.33.0` browser bundle. Plugin version `0.1.0`.
 
-Install by copying `addons/@aviorstudio_gd-clerk/` into a Godot project, or unzip `dist/@aviorstudio_gd-clerk.zip` at the project root. Enable the `GdClerk` plugin to add the optional `GdClerk` autoload and the web export injector. The script can also be instanced without the plugin.
+Install by copying `addons/@aviorstudio_gd-clerk/` into a Godot project, or unzip `dist/@aviorstudio_gd-clerk.zip` at the project root. The ZIP has 34 intentional entries: the 33 addon files in `scripts/package-allowlist.json`, including Godot `.uid` files and the pinned Clerk same-directory bundle, plus `PACKAGE_MANIFEST.json`. Enable the `GdClerk` plugin to add the optional `GdClerk` autoload and the web export injector. The script can also be instanced without the plugin.
 
 ## Platform
 
@@ -32,4 +32,4 @@ The browser files under `javascript/clerk/` are the exact `6.33.0` `clerk.browse
 
 ## Not released
 
-There is no production release. Real email-code delivery, a live Smart CAPTCHA challenge, and an authorized Clerk origin are not proven. See `docs/CAPTCHA.md`, `docs/CSP.md`, and `docs/FAILURE_RECOVERY.md`.
+There is no production release. A committed acceptance file is not evidence and is rejected. Publishing requires a successful `e2e` workflow artifact for the same commit and tested ZIP, including delivered email codes, an observed Smart CAPTCHA challenge, a confirmed sign-out, and an observed Godot web export. None of those live observations exist yet. The browser fixture loads the pinned bundle but mocks the Clerk API. See `docs/CAPTCHA.md`, `docs/CSP.md`, and `docs/FAILURE_RECOVERY.md`.

@@ -10,6 +10,9 @@ func _run() -> bool:
 	failed = _expect(_policy(), "config policy rejects unsafe and unlisted origins") or failed
 	failed = _expect(_html(), "web export injects pinned local scripts") or failed
 	failed = _expect(_result_drops_secrets(), "results drop unexpected token and email fields") or failed
+	failed = _expect(_relay_lifecycle(), "relays are released, cancelled once, and ignored after free") or failed
+	failed = _expect(_relay_cap_and_callback_free(), "relay cap fails closed and a finished callback can free its owner") or failed
+	failed = _expect(_session_owner_freed(), "session callback does not touch a freed owner") or failed
 	return failed
 
 func _expect(ok: bool, label: String) -> bool:
@@ -32,7 +35,9 @@ func _native_unavailable() -> bool:
 	clerk.sign_out(done)
 	clerk.cancel_email_code()
 	clerk.configure(ClerkConfig.new(), done)
-	return calls.size() == 7 and calls.all(func(item): return item == "UNAVAILABLE")
+	var ok := calls.size() == 7 and calls.all(func(item): return item == "UNAVAILABLE")
+	clerk.free()
+	return ok
 
 func _policy() -> bool:
 	var host := "example.clerk.accounts.dev"
@@ -70,3 +75,101 @@ func _result_drops_secrets() -> bool:
 	var result := ClerkResult.from_json(raw, false)
 	var state := SessionState.from_json('{"signed_in":true,"status":"signed_in","protected_actions_blocked":false,"token":"secret-token","email":"a@b.c"}')
 	return result.token == "" and not result.message.contains("person@") and state.to_dictionary().has("token") == false and state.to_dictionary().has("email") == false
+
+func _clerk() -> Node:
+	return load("res://addons/@aviorstudio_gd-clerk/gd_clerk.gd").new()
+
+func _label(result: ClerkResult) -> String:
+	return result.error_key if result.error_key != "" else result.state
+
+func _relay_lifecycle() -> bool:
+	var clerk := _clerk()
+	var calls: Array = []
+	var done := func(result: ClerkResult) -> void:
+		calls.append(_label(result))
+	for _i in 20:
+		var id: int = clerk._track(done)
+		var relay = clerk._retain_relay(id, done, false, true)
+		if relay == null:
+			clerk.free()
+			return false
+		relay.on_js(['{"state":"CODE_SENT","error_key":"","message":"Verification code sent."}'])
+	if calls.size() != 20 or clerk._relays.size() != 0:
+		clerk.free()
+		return false
+	var cancelled_id: int = clerk._track(done)
+	var cancelled = clerk._retain_relay(cancelled_id, done, false, true)
+	clerk.cancel_email_code()
+	if calls.size() != 21 or calls[20] != "CANCELLED" or clerk._relays.size() != 0:
+		clerk.free()
+		return false
+	cancelled.on_js(['{"state":"AUTHENTICATED","error_key":"","message":"Signed in."}'])
+	if calls.size() != 21:
+		clerk.free()
+		return false
+	var next_id: int = clerk._track(done)
+	var next = clerk._retain_relay(next_id, done, false, true)
+	next.on_js(['{"state":"CODE_SENT","error_key":"","message":"Verification code sent."}'])
+	if calls.size() != 22 or calls[21] != "CODE_SENT" or clerk._relays.size() != 0:
+		clerk.free()
+		return false
+	var kept_id: int = clerk._track(done)
+	var kept = clerk._retain_relay(kept_id, done, false, false)
+	clerk.cancel_email_code()
+	if calls.size() != 22 or clerk._relays.size() != 1:
+		clerk.free()
+		return false
+	kept.on_js(['{"state":"SIGNED_OUT","error_key":"","message":"Signed out."}'])
+	if calls.size() != 23 or calls[22] != "SIGNED_OUT" or clerk._relays.size() != 0:
+		clerk.free()
+		return false
+	var freed_id: int = clerk._track(done)
+	var freed = clerk._retain_relay(freed_id, done, false, true)
+	var before := calls.size()
+	clerk.free()
+	freed.on_js(['{"state":"CODE_SENT","error_key":"","message":"later"}'])
+	return calls.size() == before
+
+func _relay_cap_and_callback_free() -> bool:
+	var clerk := _clerk()
+	var calls: Array = []
+	var done := func(result: ClerkResult) -> void:
+		calls.append(_label(result))
+	for _i in 8:
+		var id: int = clerk._track(done)
+		if clerk._retain_relay(id, done, false, false) == null:
+			clerk.free()
+			return false
+	var overflow: int = clerk._track(done)
+	if clerk._retain_relay(overflow, done, false, false) != null or calls.size() != 1 or calls[0] != "UNKNOWN":
+		clerk.free()
+		return false
+	clerk.free()
+	var owner := _clerk()
+	var saw: Array = []
+	var freeing := func(result: ClerkResult) -> void:
+		saw.append(result.state)
+	var live: int = owner._track(freeing)
+	var relay = owner._retain_relay(live, freeing, false, false)
+	relay.on_js(['{"state":"CONFIGURED","error_key":"","message":"Configured."}'])
+	if saw.size() != 1 or saw[0] != "CONFIGURED" or owner._relays.size() != 0:
+		owner.free()
+		return false
+	owner.free()
+	relay.on_js(['{"state":"CONFIGURED","error_key":"","message":"again"}'])
+	return saw.size() == 1
+
+func _session_owner_freed() -> bool:
+	var clerk := _clerk()
+	var statuses: Array = []
+	clerk.session_changed.connect(func(state: SessionState) -> void:
+		statuses.append(state.status)
+	)
+	var relay = clerk._make_session_relay()
+	relay.on_js(['{"signed_in":true,"status":"signed_in","protected_actions_blocked":false}'])
+	if statuses.size() != 1 or statuses[0] != "signed_in":
+		clerk.free()
+		return false
+	clerk.free()
+	relay.on_js(['{"signed_in":false,"status":"signed_out","protected_actions_blocked":true}'])
+	return statuses.size() == 1

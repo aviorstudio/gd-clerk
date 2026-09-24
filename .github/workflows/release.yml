@@ -2,33 +2,174 @@ name: release
 
 on:
   workflow_dispatch:
+    inputs:
+      tag:
+        description: Release tag that must match package.json
+        required: true
+        default: v0.1.0
+        type: string
 
 permissions:
-  contents: write
+  contents: read
+
+concurrency:
+  group: release-${{ inputs.tag }}
+  cancel-in-progress: false
 
 jobs:
-  publish:
+  guard:
+    if: github.ref != 'refs/heads/main'
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    steps:
+      - run: echo "release only runs from main" && exit 1
+
+  verify:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    permissions:
+      contents: read
+      actions: write
+    outputs:
+      commit: ${{ steps.identity.outputs.commit }}
+      zip_sha256: ${{ steps.package.outputs.zip_sha256 }}
+      tag: ${{ steps.identity.outputs.tag }}
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
-      - name: Refuse until email-code e2e is accepted
+        with:
+          ref: main
+          fetch-depth: 0
+      - name: Associate main and tag
+        id: identity
+        env:
+          RELEASE_TAG: ${{ inputs.tag }}
         run: |
           set -euo pipefail
-          test -f docs/E2E_ACCEPTANCE.md
-          grep -qx 'ACCEPTED' docs/E2E_ACCEPTANCE.md
+          git fetch origin main --tags
+          commit="$(git rev-parse HEAD)"
+          test "$commit" = "$(git rev-parse origin/main)"
+          if git rev-parse -q --verify "refs/tags/${RELEASE_TAG}" >/dev/null; then
+            test "$(git rev-parse "${RELEASE_TAG}^{commit}")" = "$commit"
+          fi
+          RELEASE_COMMIT="$commit" node scripts/check-release-identity.mjs
+          echo "commit=$commit" >> "$GITHUB_OUTPUT"
+          echo "tag=$RELEASE_TAG" >> "$GITHUB_OUTPUT"
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
         with:
           node-version: "22.20.0"
           cache: npm
       - run: npm ci
       - run: node scripts/vendor-clerk.mjs --check
-      - run: node scripts/package-addon.mjs
-      - name: Publish the tested ZIP
+      - run: node scripts/scan.mjs
+      - run: node scripts/workflow-policy.mjs
+      - run: node scripts/e2e-evidence.mjs --reject-committed
+      - run: npm test
+      - run: bash scripts/install-godot.sh /usr/local/bin/godot
+      - run: bash scripts/run-godot-tests.sh
+      - name: Browser fixture (mocked Clerk, not live e2e)
         env:
-          GH_TOKEN: ${{ github.token }}
+          PLAYWRIGHT_BROWSERS_PATH: /tmp/ms-playwright
+        run: |
+          mkdir -p /tmp/pw-tmp
+          TMPDIR=/tmp/pw-tmp npx playwright install chromium
+          TMPDIR=/tmp/pw-tmp npm run test:browser
+      - name: Package the closed addon and record provenance
+        id: package
+        env:
+          RELEASE_TAG: ${{ steps.identity.outputs.tag }}
+          RELEASE_COMMIT: ${{ steps.identity.outputs.commit }}
         run: |
           set -euo pipefail
-          tag="${GITHUB_REF_NAME}"
-          test "${tag}" = "v0.1.0"
-          gh release create "$tag" dist/@aviorstudio_gd-clerk.zip dist/@aviorstudio_gd-clerk.zip.sha256 --title "gd-clerk $tag" --notes-file docs/FAILURE_RECOVERY.md
+          node scripts/package-addon.mjs
+          node scripts/verify-zip.mjs dist/@aviorstudio_gd-clerk.zip
+          sha="$(awk '{print $1}' dist/@aviorstudio_gd-clerk.zip.sha256)"
+          PACKAGE_SHA256="$sha" node scripts/release-notes.mjs --tag "$RELEASE_TAG" --commit "$RELEASE_COMMIT" --zip-sha256 "$sha" --out dist/RELEASE_NOTES.md
+          echo "zip_sha256=$sha" >> "$GITHUB_OUTPUT"
+      - name: Installed ZIP editor lifecycle
+        run: node scripts/editor-lifecycle.mjs dist/@aviorstudio_gd-clerk.zip
+      - name: Require live e2e evidence for this artifact
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ steps.identity.outputs.tag }}
+          RELEASE_COMMIT: ${{ steps.identity.outputs.commit }}
+          PACKAGE_SHA256: ${{ steps.package.outputs.zip_sha256 }}
+        run: node scripts/require-live-evidence.mjs --from-github
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: gd-clerk-release
+          if-no-files-found: error
+          path: |
+            dist/@aviorstudio_gd-clerk.zip
+            dist/@aviorstudio_gd-clerk.zip.sha256
+            dist/RELEASE_NOTES.md
+            dist/PACKAGE_MANIFEST.json
+
+  publish:
+    needs: verify
+    if: needs.verify.result == 'success'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
+      actions: read
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: ${{ needs.verify.outputs.commit }}
+          fetch-depth: 0
+      - name: Recheck main and tag association
+        env:
+          RELEASE_TAG: ${{ needs.verify.outputs.tag }}
+          RELEASE_COMMIT: ${{ needs.verify.outputs.commit }}
+        run: |
+          set -euo pipefail
+          git fetch origin main --tags
+          test "$(git rev-parse HEAD)" = "$RELEASE_COMMIT"
+          test "$(git rev-parse origin/main)" = "$RELEASE_COMMIT"
+          if git rev-parse -q --verify "refs/tags/${RELEASE_TAG}" >/dev/null; then
+            test "$(git rev-parse "${RELEASE_TAG}^{commit}")" = "$RELEASE_COMMIT"
+          fi
+          node scripts/check-release-identity.mjs
+      - name: Download the tested artifact
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh run download "$GITHUB_RUN_ID" --name gd-clerk-release --dir dist
+      - name: Recheck checksum, manifest, provenance, and live evidence
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ needs.verify.outputs.tag }}
+          RELEASE_COMMIT: ${{ needs.verify.outputs.commit }}
+          PACKAGE_SHA256: ${{ needs.verify.outputs.zip_sha256 }}
+        run: |
+          set -euo pipefail
+          zip="$(find dist -name '@aviorstudio_gd-clerk.zip' -print -quit)"
+          notes="$(find dist -name 'RELEASE_NOTES.md' -print -quit)"
+          test -n "$zip"
+          test -n "$notes"
+          actual="$(sha256sum "$zip" | awk '{print $1}')"
+          test "$actual" = "$PACKAGE_SHA256"
+          node scripts/verify-zip.mjs "$zip"
+          node scripts/release-notes.mjs --check "$notes"
+          node scripts/e2e-evidence.mjs --reject-committed
+          node scripts/require-live-evidence.mjs --from-github
+      - name: Publish the exact tested ZIP
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ needs.verify.outputs.tag }}
+          RELEASE_COMMIT: ${{ needs.verify.outputs.commit }}
+        run: |
+          set -euo pipefail
+          zip="$(find dist -name '@aviorstudio_gd-clerk.zip' -print -quit)"
+          notes="$(find dist -name 'RELEASE_NOTES.md' -print -quit)"
+          shafile="$(find dist -name '@aviorstudio_gd-clerk.zip.sha256' -print -quit)"
+          if git rev-parse -q --verify "refs/tags/${RELEASE_TAG}" >/dev/null; then
+            test "$(git rev-parse "${RELEASE_TAG}^{commit}")" = "$RELEASE_COMMIT"
+          else
+            git tag "$RELEASE_TAG" "$RELEASE_COMMIT"
+            git push origin "refs/tags/${RELEASE_TAG}"
+          fi
+          if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
+            echo "release already exists; refusing to replace it"
+            exit 1
+          fi
+          gh release create "$RELEASE_TAG" "$zip" "$shafile" --title "gd-clerk $RELEASE_TAG" --notes-file "$notes" --target "$RELEASE_COMMIT"

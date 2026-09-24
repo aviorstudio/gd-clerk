@@ -49,6 +49,11 @@ test("real browser loads the pinned clerk bundle and refuses invisible signup fa
     const page = await browser.newPage();
     const errors = [];
     page.on("pageerror", (err) => errors.push(String(err)));
+    await page.route("**/*", (route) => {
+      const url = route.request().url();
+      if (url.startsWith(`http://127.0.0.1:${port}/`)) return route.continue();
+      return route.abort();
+    });
     await page.goto(`http://127.0.0.1:${port}/tests/browser/fixture.html`, { timeout: 15000 });
     await page.waitForFunction(() => window.GdClerkBridge && window.Clerk && window.Clerk.version, null, { timeout: 15000 });
     const version = await page.evaluate(() => window.Clerk.version);

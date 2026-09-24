@@ -2,9 +2,13 @@ extends Node
 
 signal session_changed(state: SessionState)
 
+const _MAX_LIVE_RELAYS := 8
+
 var _next_id: int = 1
+var _generation: int = 1
 var _pending: Dictionary = {}
 var _session_cb: Variant = null
+var _session_relay: RefCounted = null
 var _listener_ready: bool = false
 var _relays: Array = []
 
@@ -23,7 +27,9 @@ func configure(config: ClerkConfig, done: Callable) -> void:
 		return
 	_ensure_listener()
 	var id := _track(done)
-	var cb := _make_callback(id, done, false)
+	var cb: Variant = _make_callback(id, done, false, false)
+	if cb == null:
+		return
 	bridge.call("configure", JSON.stringify(config.to_dictionary()), cb)
 
 func begin_email_code(email: String, mode: int, done: Callable) -> void:
@@ -42,7 +48,10 @@ func begin_email_code(email: String, mode: int, done: Callable) -> void:
 		_finish_now(done, ClerkResult.error("CONFIG", "Clerk bridge is not loaded."))
 		return
 	var id := _track(done)
-	bridge.call("beginEmailCode", email, mode_name, _make_callback(id, done, false))
+	var cb: Variant = _make_callback(id, done, false, true)
+	if cb == null:
+		return
+	bridge.call("beginEmailCode", email, mode_name, cb)
 
 func complete_email_code(code: String, done: Callable) -> void:
 	if not _is_web():
@@ -56,7 +65,10 @@ func complete_email_code(code: String, done: Callable) -> void:
 		_finish_now(done, ClerkResult.error("CONFIG", "Clerk bridge is not loaded."))
 		return
 	var id := _track(done)
-	bridge.call("completeEmailCode", code, _make_callback(id, done, false))
+	var cb: Variant = _make_callback(id, done, false, true)
+	if cb == null:
+		return
+	bridge.call("completeEmailCode", code, cb)
 
 func resend_email_code(done: Callable) -> void:
 	if not _is_web():
@@ -67,9 +79,24 @@ func resend_email_code(done: Callable) -> void:
 		_finish_now(done, ClerkResult.error("CONFIG", "Clerk bridge is not loaded."))
 		return
 	var id := _track(done)
-	bridge.call("resendEmailCode", _make_callback(id, done, false))
+	var cb: Variant = _make_callback(id, done, false, true)
+	if cb == null:
+		return
+	bridge.call("resendEmailCode", cb)
 
 func cancel_email_code() -> void:
+	_generation += 1
+	var stale: Array = []
+	for relay in _relays:
+		if relay.cancellable and not relay.settled and relay.generation != _generation:
+			stale.append(relay)
+	for relay in stale:
+		if not is_instance_valid(self):
+			return
+		relay.settled = true
+		relay.cancelled = true
+		_release_relay(relay)
+		_complete(relay.id, relay.done, ClerkResult.error("CANCELLED", "The request was cancelled."))
 	if not _is_web():
 		return
 	var bridge := _bridge()
@@ -86,7 +113,10 @@ func get_session_token(min_validity_seconds: int, done: Callable) -> void:
 		_finish_now(done, ClerkResult.error("CONFIG", "Clerk bridge is not loaded."))
 		return
 	var id := _track(done)
-	bridge.call("getSessionToken", min_validity_seconds, _make_callback(id, done, true))
+	var cb: Variant = _make_callback(id, done, true, false)
+	if cb == null:
+		return
+	bridge.call("getSessionToken", min_validity_seconds, cb)
 
 func sign_out(done: Callable) -> void:
 	if not _is_web():
@@ -97,7 +127,10 @@ func sign_out(done: Callable) -> void:
 		_finish_now(done, ClerkResult.error("CONFIG", "Clerk bridge is not loaded."))
 		return
 	var id := _track(done)
-	bridge.call("signOut", _make_callback(id, done, false))
+	var cb: Variant = _make_callback(id, done, false, false)
+	if cb == null:
+		return
+	bridge.call("signOut", cb)
 
 func _is_web() -> bool:
 	return OS.has_feature("web")
@@ -134,18 +167,63 @@ func _complete(id: int, done: Callable, result: ClerkResult) -> void:
 	if not _pending.has(id):
 		return
 	_pending.erase(id)
+	# The callback may queue_free this node. Do not touch self after it runs.
 	if done.is_valid():
 		done.call(result)
 
-func _make_callback(id: int, done: Callable, allow_token: bool) -> Variant:
+func _make_callback(id: int, done: Callable, allow_token: bool, cancellable: bool) -> Variant:
+	if _relays.size() >= _MAX_LIVE_RELAYS:
+		_complete(id, done, ClerkResult.error("UNKNOWN", "The request failed."))
+		return null
 	var js := _js()
+	if js == null:
+		_complete(id, done, ClerkResult.error("CONFIG", "Clerk bridge is not loaded."))
+		return null
+	var relay: Variant = _retain_relay(id, done, allow_token, cancellable)
+	if relay == null:
+		return null
+	return js.call("create_callback", Callable(relay, "on_js"))
+
+func _retain_relay(id: int, done: Callable, allow_token: bool, cancellable: bool) -> Variant:
+	if _relays.size() >= _MAX_LIVE_RELAYS:
+		_complete(id, done, ClerkResult.error("UNKNOWN", "The request failed."))
+		return null
 	var relay := _Relay.new()
 	relay.owner = self
 	relay.id = id
 	relay.done = done
 	relay.allow_token = allow_token
+	relay.generation = _generation
+	relay.cancellable = cancellable
 	_relays.append(relay)
-	return js.call("create_callback", Callable(relay, "on_js"))
+	return relay
+
+func _release_relay(relay: _Relay) -> void:
+	var kept: Array = []
+	for item in _relays:
+		if item != relay:
+			kept.append(item)
+	_relays = kept
+
+func _make_session_relay() -> _SessionRelay:
+	var relay := _SessionRelay.new()
+	relay.owner = self
+	_session_relay = relay
+	return relay
+
+func _notification(what: int) -> void:
+	if what != NOTIFICATION_PREDELETE:
+		return
+	_generation += 1
+	for relay in _relays:
+		relay.settled = true
+		relay.owner = null
+	_relays.clear()
+	_pending.clear()
+	if _session_relay != null:
+		_session_relay.settled = true
+		_session_relay.owner = null
+		_session_relay = null
 
 func _ensure_listener() -> void:
 	if _listener_ready:
@@ -154,8 +232,7 @@ func _ensure_listener() -> void:
 	var bridge := _bridge()
 	if js == null or bridge == null:
 		return
-	var relay := _SessionRelay.new()
-	relay.owner = self
+	var relay := _make_session_relay()
 	_session_cb = js.call("create_callback", Callable(relay, "on_js"))
 	bridge.call("setSessionListener", _session_cb)
 	_listener_ready = true
@@ -169,20 +246,39 @@ class _Relay:
 	var id: int = 0
 	var done: Callable
 	var allow_token: bool = false
+	var generation: int = 0
+	var cancellable: bool = false
+	var cancelled: bool = false
+	var settled: bool = false
 
 	func on_js(args: Array) -> void:
-		if owner == null:
+		if settled:
 			return
-		var raw := ""
-		if not args.is_empty():
-			raw = str(args[0])
-		owner._complete(id, done, ClerkResult.from_json(raw, allow_token))
+		if not is_instance_valid(owner):
+			settled = true
+			return
+		var deliver_cancel: bool = cancelled or (cancellable and generation != owner._generation)
+		settled = true
+		var result: ClerkResult
+		if deliver_cancel:
+			result = ClerkResult.error("CANCELLED", "The request was cancelled.")
+		else:
+			var raw := ""
+			if not args.is_empty():
+				raw = str(args[0])
+			result = ClerkResult.from_json(raw, allow_token)
+		var target: Node = owner
+		target._release_relay(self)
+		if not is_instance_valid(target):
+			return
+		target._complete(id, done, result)
 
 class _SessionRelay:
 	extends RefCounted
 	var owner: Node
+	var settled: bool = false
 
 	func on_js(args: Array) -> void:
-		if owner == null or args.is_empty():
+		if settled or not is_instance_valid(owner) or args.is_empty():
 			return
 		owner._on_session_payload(str(args[0]))

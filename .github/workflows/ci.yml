@@ -7,6 +7,7 @@ on:
 
 permissions:
   contents: read
+  actions: write
 
 concurrency:
   group: ci-${{ github.ref }}
@@ -15,7 +16,7 @@ concurrency:
 jobs:
   test:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 40
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
@@ -25,19 +26,13 @@ jobs:
       - run: npm ci
       - run: node scripts/vendor-clerk.mjs --check
       - run: node scripts/scan.mjs
+      - run: node scripts/workflow-policy.mjs
+      - run: node scripts/e2e-evidence.mjs --reject-committed
       - run: npm test
-      - name: Install pinned Godot 4.7.2
-        env:
-          GODOT_SHA512: 9aa00f7a605200940bce3027a567b782f49bd8e940dd06ae9e987bd65aee1b1467edd56ed84fcdcbdd44354bf613bdbb4e5d2913e925850368e150c59ed54c65
-        run: |
-          set -euo pipefail
-          curl -fsSL -o /tmp/godot.zip https://github.com/godotengine/godot/releases/download/4.7.2-stable/Godot_v4.7.2-stable_linux.x86_64.zip
-          echo "${GODOT_SHA512}  /tmp/godot.zip" | sha512sum -c -
-          unzip -q /tmp/godot.zip -d /tmp/godot
-          install -m 755 /tmp/godot/Godot_v4.7.2-stable_linux.x86_64 /usr/local/bin/godot
+      - run: bash scripts/install-godot.sh /usr/local/bin/godot
       - name: Godot headless tests
-        run: godot --headless --import --path . --quit && godot --headless --path . --quit-after 1 --script res://tests/gdscript/run_gd_tests.gd
-      - name: Browser fixture
+        run: bash scripts/run-godot-tests.sh
+      - name: Browser fixture (mocked Clerk, not live e2e)
         env:
           PLAYWRIGHT_BROWSERS_PATH: /tmp/ms-playwright
         run: |
@@ -45,9 +40,13 @@ jobs:
           TMPDIR=/tmp/pw-tmp npx playwright install chromium
           TMPDIR=/tmp/pw-tmp npm run test:browser
       - run: node scripts/package-addon.mjs
+      - run: node scripts/verify-zip.mjs dist/@aviorstudio_gd-clerk.zip
+      - name: Installed ZIP editor lifecycle
+        run: node scripts/editor-lifecycle.mjs dist/@aviorstudio_gd-clerk.zip
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: gd-clerk-addon
           path: |
             dist/@aviorstudio_gd-clerk.zip
             dist/@aviorstudio_gd-clerk.zip.sha256
+            dist/PACKAGE_MANIFEST.json
