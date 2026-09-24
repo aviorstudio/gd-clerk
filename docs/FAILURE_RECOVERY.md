@@ -1,16 +1,16 @@
 # Release failure recovery
 
-v0.1.0 must not be published until a live email-code run has been exercised. That proof is a successful `e2e` workflow artifact for the same commit and ZIP, not a file committed to the repository. `docs/E2E_ACCEPTANCE.md` is rejected if it is added. The evidence must record the tested ZIP sha256, the pinned clerk bundle sha256, an allowed origin, an https Frontend API origin, a delivered normal email-code sign-up and sign-in, a confirmed sign-out, a signed-out reload, an observed network failure, and an observed Godot web export. A presented Turnstile challenge is not acceptance and is not recorded as completed. None of those observations exist yet.
+v0.1.0 must not be published until a maintainer has manually accepted a redacted live email-code report for the exact candidate commit and ZIP. That report is not produced or fetched by this repository. A committed acceptance file is not evidence. `docs/E2E_ACCEPTANCE.md` must not be added.
 
-The release workflow is `workflow_dispatch` on `main` only. The verify job uses read tokens, runs the test suite, builds one ZIP, checks the closed 34-entry manifest, installs that ZIP, and refuses to continue without live evidence or a main-only release environment. The publish job does not grant `contents: write` to `GITHUB_TOKEN`. It uses the `release` environment token to tag that same commit and upload that same ZIP. It recomputes the checksum and checks the evidence again. Release notes are generated package provenance, not this recovery document.
+The release workflow is `workflow_dispatch` on `main` only. Its test job uses a read token, runs the generic gates, builds one ZIP, and uploads that ZIP with its checksum. The publish job grants `contents: write` only to `GITHUB_TOKEN`, checks the main ref, downloads that same ZIP, and checks the checksum. It then fails closed. The failure is an explicit hold: this workflow does not verify external live evidence, and no file, input, or secret clears the hold. Removing the hold later is a code change. It is not automatic enforcement of another repository, and it is not proof a report was reviewed.
 
-The tag ruleset, when present, must be active on `refs/tags/v*` and restrict creation, update, and deletion. Its only bypass may be one dedicated publisher app that is not GitHub Actions and not a repository admin, organization owner, or repository role. That publisher id is not pinned, so the check fails closed. This does not protect `main`. Classic protection on `main` requires the GitHub Actions check `test` (app id 15368), with strict status checks, admin enforcement, no required reviews, and no force-push or branch deletion. The default Actions `GITHUB_TOKEN` permission is read. There is still no ruleset, no release environment, and no required pull request. Tag rules do not close that gap, and this repository does not configure the release tag ruleset.
+This repository does not configure a tag ruleset, a release environment, or a dedicated release token. Classic protection on `main` requires the GitHub Actions check `test` (app id 15368), with strict status checks, admin enforcement, no required reviews, and no force-push or branch deletion. The default Actions `GITHUB_TOKEN` permission is read. There is still no ruleset and no required pull request.
 
 If a publish is started and fails:
 
 1. Do not retag the same commit over a partial GitHub Release. Delete the draft or failed release asset first.
 2. Fix the package build, rebuild `dist/@aviorstudio_gd-clerk.zip`, and confirm its sha256 matches a fresh local build of the same commit.
-3. Publish a new release from the corrected tag only after verify and publish both accept the same artifact. Do not force-push `main` to hide a bad asset.
+3. Do not force-push `main` to hide a bad asset. Do not remove the external evidence hold to skip a missing review.
 4. If a bad ZIP was already downloaded, publish a follow-up release and tell consumers to discard the previous sha256. Do not rewrite history.
 
-The workflow does not use a secret key, npm token, or Clerk credential. A missing publishable key, Frontend API, origin, or inbox blocks the live run before any evidence file is written.
+The workflow does not use a secret key, npm token, Clerk credential, inbox, or sender.

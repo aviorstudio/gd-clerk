@@ -1,12 +1,15 @@
 import assert from "node:assert/strict";
-import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { test } from "node:test";
 import { fileURLToPath } from "node:url";
 import { spawnSync } from "node:child_process";
-import { assertNoCommittedSentinel, isSentinel, verifyEvidence } from "../../scripts/e2e-evidence.mjs";
+import { buildCandidate } from "../../scripts/candidate-provenance.mjs";
+import { couplingHits } from "../../scripts/consumer-boundary.mjs";
 import { assertReleaseIdentity } from "../../scripts/check-release-identity.mjs";
 import { godotLogProblems } from "../../scripts/reject-godot-log.mjs";
+import { assertChecksum, assertMainRef } from "../../scripts/release-guard.mjs";
+import { assertPublishBlocked } from "../../scripts/release-hold.mjs";
 import { assertNotes, renderNotes } from "../../scripts/release-notes.mjs";
 import { assertWorkflows } from "../../scripts/workflow-policy.mjs";
 
@@ -14,77 +17,53 @@ const root = join(dirname(fileURLToPath(import.meta.url)), "../..");
 const commit = "a".repeat(40);
 const sha = "b".repeat(64);
 const browserSha = "c".repeat(64);
-const expected = { commit, tag: "v0.1.0", package_sha256: sha, clerk_browser_sha256: browserSha };
 
-function evidence(overrides = {}) {
-  return {
-    schema: "gd-clerk.e2e.v2",
-    source: "github-actions-e2e",
-    live: true,
-    mocked_clerk: false,
-    commit,
-    tag: "v0.1.0",
-    package_sha256: sha,
-    clerk_browser_sha256: browserSha,
-    clerk_version: "6.33.0",
-    godot_version: "4.7.2-stable",
-    runner: "scripts/live-e2e.mjs",
-    frontend_api: "https://example.clerk.accounts.dev",
-    origin: "https://app.revik.gg",
-    publishable_key_prefix: "pk_test_",
-    email_code_sign_in: "delivered",
-    email_code_sign_up: "delivered",
-    captcha_challenge: "not_presented",
-    captcha_challenge_accepted: false,
-    captcha_constraint: "",
-    captcha_policy: "smart",
-    captcha_slot: "mounted",
-    invisible_fallback: "refused",
-    captcha_bypass: "refused",
-    sign_out: "confirmed",
-    reload_signed_out: "confirmed",
-    network_failure: "observed",
-    godot_web_export: "observed",
-    exercised: [
-      "captcha_bypass_refused",
-      "captcha_policy_smart",
-      "captcha_slot_mounted",
-      "email_code_sign_in",
-      "godot_web_export",
-      "invisible_fallback_refused",
-      "network_failure",
-      "reload_signed_out",
-      "sign_out",
-      "sign_up_attempted",
-    ],
-    run_id: "123",
-    run_url: "https://github.com/aviorstudio/gd-clerk/actions/runs/123",
-    ...overrides,
-  };
-}
-
-test("sentinel and committed acceptance files are rejected", () => {
-  assert.equal(isSentinel("ACCEPTED\n"), true);
-  assert.throws(() => verifyEvidence("ACCEPTED", expected), /sentinel/);
-  assert.throws(() => verifyEvidence(evidence({ source: "committed-file" }), expected), /source/);
-  assert.throws(() => verifyEvidence(evidence({ package_sha256: "c".repeat(64) }), expected), /sha256/);
-  assert.throws(() => verifyEvidence(evidence({ godot_web_export: "untested" }), expected), /godot_web_export/);
-  assertNoCommittedSentinel(root);
-  const dir = mkdtempSync("/tmp/gd-clerk-sentinel-XXXXXX");
-  const file = join(dir, "notes.txt");
-  writeFileSync(file, "ACCEPTED\n");
-  const rejected = spawnSync(process.execPath, [join(root, "scripts/require-live-evidence.mjs"), "--file", file], {
-    encoding: "utf8",
-    env: { ...process.env, RELEASE_COMMIT: commit, RELEASE_TAG: "v0.1.0", PACKAGE_SHA256: sha },
-  });
-  assert.notEqual(rejected.status, 0);
-  assert.match(rejected.stderr, /sentinel/);
+test("release guards reject a non-main ref and a checksum mismatch", () => {
+  assert.throws(() => assertMainRef({ ref: "refs/heads/feat", head: commit, originMain: commit }), /main/);
+  assert.throws(() => assertMainRef({ ref: "refs/heads/main", head: commit, originMain: "d".repeat(40) }), /origin\/main/);
+  assert.doesNotThrow(() => assertMainRef({ ref: "refs/heads/main", head: commit, originMain: commit }));
+  assert.throws(() => assertChecksum(sha, "d".repeat(64)), /checksum/);
+  assert.throws(() => assertChecksum("", sha), /checksum/);
+  assert.doesNotThrow(() => assertChecksum(sha, sha));
 });
 
-test("structured live evidence matches only the tested artifact", () => {
-  assert.equal(verifyEvidence(evidence(), expected).live, true);
+test("publish hold ignores sentinel files and acceptance inputs", () => {
+  assert.throws(() => assertPublishBlocked(), /publishing is disabled/);
+  const dir = mkdtempSync("/tmp/gd-clerk-hold-XXXXXX");
+  writeFileSync(join(dir, "ACCEPTED"), "ACCEPTED\n");
+  const rejected = spawnSync(process.execPath, [join(root, "scripts/release-hold.mjs"), "--accept", dir], {
+    encoding: "utf8",
+    env: { ...process.env, EXTERNAL_EVIDENCE_ACCEPTED: "true", ACCEPTED: "1" },
+  });
+  assert.notEqual(rejected.status, 0);
+  assert.match(rejected.stderr, /publishing is disabled/);
+});
+
+test("candidate provenance is generic and is not a release", () => {
+  const doc = buildCandidate({
+    commit,
+    zipSha256: sha,
+    clerkBrowserSha256: browserSha,
+    version: "0.1.0",
+    entries: 34,
+    clerkVersion: "6.33.0",
+  });
+  assert.equal(doc.release, false);
+  assert.equal(doc.isolated_test_only, true);
+  assert.equal(doc.schema, "gd-clerk.candidate.v1");
+  assert.throws(() => buildCandidate({ commit: "abc", zipSha256: sha, clerkBrowserSha256: browserSha, entries: 34 }));
   assert.throws(() => assertReleaseIdentity({ tag: "v9.9.9", commit, version: "0.1.0" }));
   assert.doesNotThrow(() => assertReleaseIdentity({ tag: "v0.1.0", commit, version: "0.1.0" }));
+});
+
+test("repository source does not name a consuming game or inbox", () => {
+  assert.deepEqual(couplingHits(root), []);
+  const removed = ["live-e2e.mjs", ["agent", "mail-otp.mjs"].join(""), "e2e-web.mjs", "e2e-evidence.mjs", "require-live-evidence.mjs", "check-release-rules.mjs", "redact.mjs"];
+  for (const name of removed) {
+    assert.equal(existsSync(join(root, "scripts", name)), false);
+  }
+  assert.equal(existsSync(join(root, ".github/workflows/e2e.yml")), false);
+  assert.equal(existsSync(join(root, "docs/E2E_ACCEPTANCE.md")), false);
 });
 
 test("godot log rejector fails closed on engine errors", () => {
@@ -111,7 +90,7 @@ test("release notes are package provenance", () => {
   assert.throws(() => assertNotes("# Release failure recovery\n", info));
 });
 
-test("workflows keep verify read-only and publish narrow", () => {
+test("workflows keep the publish token narrow and the evidence hold unconditional", () => {
   assertWorkflows(root);
   const allow = JSON.parse(readFileSync(join(root, "scripts/package-allowlist.json"), "utf8"));
   assert.equal(allow.addon_files, 33);

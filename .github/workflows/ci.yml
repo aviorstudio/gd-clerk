@@ -27,7 +27,6 @@ jobs:
       - run: node scripts/vendor-clerk.mjs --check
       - run: node scripts/scan.mjs
       - run: node scripts/workflow-policy.mjs
-      - run: node scripts/e2e-evidence.mjs --reject-committed
       - run: npm test
       - run: bash scripts/install-godot.sh /usr/local/bin/godot
       - name: Godot headless tests
@@ -43,6 +42,8 @@ jobs:
       - run: node scripts/verify-zip.mjs dist/@aviorstudio_gd-clerk.zip
       - name: Installed ZIP editor lifecycle
         run: node scripts/editor-lifecycle.mjs dist/@aviorstudio_gd-clerk.zip
+      - name: Record candidate provenance
+        run: node scripts/candidate-provenance.mjs --zip dist/@aviorstudio_gd-clerk.zip --commit "$GITHUB_SHA" --out dist/CANDIDATE.json
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: gd-clerk-addon
@@ -50,3 +51,4 @@ jobs:
             dist/@aviorstudio_gd-clerk.zip
             dist/@aviorstudio_gd-clerk.zip.sha256
             dist/PACKAGE_MANIFEST.json
+            dist/CANDIDATE.json

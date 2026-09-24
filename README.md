@@ -10,7 +10,7 @@ Web export only. Native and headless calls return `UNAVAILABLE` once and do not 
 
 ## API
 
-`configure(ClerkConfig, done)` requires a `pk_test_` or `pk_live_` publishable key, the exact `https://` Frontend API origin encoded by that key, and an explicit allowed-origin list. The current page origin must be in that list. `http://localhost:3100` and `https://app.revik.gg` are documented coordination points only. They are not registered with Clerk by this repository.
+`configure(ClerkConfig, done)` requires a `pk_test_` or `pk_live_` publishable key, the exact `https://` Frontend API origin encoded by that key, and an explicit allowed-origin list. The current page origin must be in that list. The consuming project supplies those values. This repository does not embed a game origin, publishable key, inbox, or sender.
 
 `begin_email_code(email, mode, done)` takes `0` for `SIGN_IN` and `1` for `SIGN_UP`. Sign-in never creates an account. Sign-up uses the legacy `client.signUp` resource only after the Smart CAPTCHA slot is mounted. Future hook methods are not used.
 
@@ -32,4 +32,4 @@ The browser files under `javascript/clerk/` are the exact `6.33.0` `clerk.browse
 
 ## Not released
 
-There is no production release. A committed acceptance file is not evidence and is rejected. Publishing requires a successful `e2e` workflow artifact for the same commit, tested ZIP, and pinned `clerk.browser.js` sha256. That run must exercise a real Godot 4.7.2 web export, deliver a normal email-code sign-up and sign-in, confirm sign-out, confirm the signed-out reload, and observe a network-failure sign-out. Smart policy, the mounted CAPTCHA slot, refused invisible fallback, and refused testing-token bypass are live widget and blocked-path checks. The browser fixture mocks the Smart challenge. This repository does not claim interactive challenge completion. A presented Turnstile widget fails the live run and is not acceptance. See `docs/CAPTCHA.md`, `docs/CSP.md`, and `docs/FAILURE_RECOVERY.md`.
+There is no production release. This addon is game-agnostic. A consuming project may test the candidate ZIP in an isolated integration. That ZIP is not a released pin. Live email-code proof belongs to the consuming project. This repository does not run that proof, does not read another repository's evidence, and does not accept a committed acceptance file. The browser fixture mocks the Smart challenge and does not claim interactive challenge completion. See `docs/CONSUMER.md`, `docs/CAPTCHA.md`, `docs/CSP.md`, and `docs/FAILURE_RECOVERY.md`.

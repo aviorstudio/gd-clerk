@@ -1,6 +1,7 @@
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { FORBIDDEN_COUPLING } from "./consumer-boundary.mjs";
 
 function jobBlock(text, name) {
   const marker = `\n  ${name}:\n`;
@@ -12,27 +13,42 @@ function jobBlock(text, name) {
 }
 
 export function assertWorkflows(root) {
-  const release = readFileSync(join(root, ".github/workflows/release.yml"), "utf8");
-  const ci = readFileSync(join(root, ".github/workflows/ci.yml"), "utf8");
-  const e2e = readFileSync(join(root, ".github/workflows/e2e.yml"), "utf8");
+  const releasePath = join(root, ".github/workflows/release.yml");
+  const ciPath = join(root, ".github/workflows/ci.yml");
+  const e2ePath = join(root, ".github/workflows/e2e.yml");
+  if (existsSync(e2ePath)) throw new Error("e2e workflow must not live in this repository");
+  const release = readFileSync(releasePath, "utf8");
+  const ci = readFileSync(ciPath, "utf8");
   const releaseHead = release.split("\njobs:")[0];
   if (!/permissions:\n  contents: read\n/.test(releaseHead) || /contents: write/.test(releaseHead)) {
     throw new Error("release workflow must default to contents: read");
   }
-  const verify = jobBlock(release, "verify");
+  const testJob = jobBlock(release, "test");
   const publish = jobBlock(release, "publish");
-  if (/contents: write/.test(verify)) throw new Error("verify job must not have contents: write");
-  if (/contents: write/.test(publish)) throw new Error("publish job must not grant contents: write");
-  if (/actions: write/.test(verify)) throw new Error("verify job must not have actions: write");
-  if (!/actions: read/.test(verify)) throw new Error("verify job must read e2e artifacts");
-  if (!/environment: release/.test(publish) || !/secrets\.RELEASE_TOKEN/.test(publish)) {
-    throw new Error("publish job must use the main-only release environment token");
+  if (/contents: write/.test(testJob)) throw new Error("test job must not have contents: write");
+  if (!/contents: write/.test(publish)) throw new Error("publish job must grant contents: write");
+  if (/actions: write/.test(publish) || /environment:/.test(publish)) {
+    throw new Error("publish job must use only GITHUB_TOKEN contents: write");
   }
-  if (!/actions: read/.test(publish)) throw new Error("publish job must read the tested artifact");
-  for (const forbidden of ["ACCEPTED", "docs/E2E_ACCEPTANCE.md", "docs/FAILURE_RECOVERY.md"]) {
-    if (release.includes(forbidden) || e2e.includes(forbidden)) {
-      throw new Error(`workflow still treats ${forbidden} as acceptance`);
-    }
+  if (!/secrets\.GITHUB_TOKEN/.test(publish)) throw new Error("publish job must use GITHUB_TOKEN");
+  const forbidden = [
+    ...FORBIDDEN_COUPLING,
+    "live-e2e",
+    "e2e-evidence",
+    "ACCEPTED",
+    "docs/E2E_ACCEPTANCE.md",
+    "check-release-rules.mjs",
+  ];
+  for (const item of forbidden) {
+    if (release.includes(item) || ci.includes(item)) throw new Error(`workflow contains ${item}`);
+  }
+  const holdAt = release.indexOf("node scripts/release-hold.mjs");
+  const createAt = release.indexOf("gh release create");
+  if (holdAt < 0 || createAt < holdAt) throw new Error("publish must fail closed before creating a release");
+  const stepStart = release.lastIndexOf("\n      - name:", holdAt);
+  const step = release.slice(stepStart, holdAt);
+  if (/\bif:/.test(step) || /continue-on-error/.test(step)) {
+    throw new Error("external evidence hold must not be conditional");
   }
   const required = [
     "npm test",
@@ -42,30 +58,21 @@ export function assertWorkflows(root) {
     "node scripts/package-addon.mjs",
     "node scripts/verify-zip.mjs",
     "node scripts/editor-lifecycle.mjs",
-    "node scripts/require-live-evidence.mjs",
-    "node scripts/release-notes.mjs",
-    "git rev-parse origin/main",
+    "node scripts/release-hold.mjs",
+    "node scripts/release-guard.mjs --main",
+    "sha256sum --check --strict",
     "gh release create",
-    "node scripts/check-release-rules.mjs --from-github",
-    "node scripts/zip-entry-sha.mjs",
+    "refs/heads/main",
+    "secrets.GITHUB_TOKEN",
   ];
   for (const item of required) {
     if (!release.includes(item)) throw new Error(`release workflow missing ${item}`);
   }
-  if (release.split("node scripts/require-live-evidence.mjs").length < 3) {
-    throw new Error("verify and publish must both require live evidence");
-  }
   if (ci.includes("godot --headless --path . --quit-after 1")) {
     throw new Error("CI must reject Godot engine errors through the runner");
   }
-  for (const item of ["bash scripts/run-godot-tests.sh", "node scripts/editor-lifecycle.mjs", "node scripts/verify-zip.mjs", "node scripts/e2e-evidence.mjs --reject-committed"]) {
+  for (const item of ["bash scripts/run-godot-tests.sh", "node scripts/editor-lifecycle.mjs", "node scripts/verify-zip.mjs", "node scripts/candidate-provenance.mjs"]) {
     if (!ci.includes(item)) throw new Error(`CI missing ${item}`);
-  }
-  if (!e2e.includes("node scripts/live-e2e.mjs") || !e2e.includes("name: e2e-evidence")) {
-    throw new Error("e2e workflow must fail closed and only upload a real evidence artifact");
-  }
-  if (e2e.includes("have not been observed") || !e2e.includes("scripts/install-godot-templates.sh")) {
-    throw new Error("e2e workflow must run the real web export runner");
   }
 }
 

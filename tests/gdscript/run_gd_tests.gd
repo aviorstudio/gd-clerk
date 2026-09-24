@@ -47,22 +47,22 @@ func _policy() -> bool:
 		encoded = encoded.substr(0, encoded.length() - 1)
 	config.publishable_key = "pk_test_" + encoded
 	config.frontend_api = "https://" + host
-	config.allowed_origins = PackedStringArray(["http://localhost:3100", "https://app.revik.gg"])
-	if ClerkPolicy.validate_config(config, "http://localhost:3100") != "":
+	config.allowed_origins = PackedStringArray(["http://127.0.0.1:8080", "https://consumer.example"])
+	if ClerkPolicy.validate_config(config, "http://127.0.0.1:8080") != "":
 		return false
-	if ClerkPolicy.validate_config(config, "http://localhost:3101") == "":
+	if ClerkPolicy.validate_config(config, "http://127.0.0.1:8081") == "":
 		return false
-	if ClerkPolicy.validate_config(config, "https://app.revik.gg") != "":
+	if ClerkPolicy.validate_config(config, "https://consumer.example") != "":
 		return false
 	config.frontend_api = "http://" + host
-	if ClerkPolicy.validate_config(config, "http://localhost:3100") == "":
+	if ClerkPolicy.validate_config(config, "http://127.0.0.1:8080") == "":
 		return false
 	config.frontend_api = "https://other.clerk.accounts.dev"
-	if ClerkPolicy.validate_config(config, "http://localhost:3100") == "":
+	if ClerkPolicy.validate_config(config, "http://127.0.0.1:8080") == "":
 		return false
 	config.publishable_key = "sk_bad"
 	config.frontend_api = "https://" + host
-	if ClerkPolicy.validate_config(config, "http://localhost:3100") == "":
+	if ClerkPolicy.validate_config(config, "http://127.0.0.1:8080") == "":
 		return false
 	return ClerkPolicy.validate_email("person@example.com") and not ClerkPolicy.validate_email("not an email") and ClerkPolicy.validate_code("123456") and not ClerkPolicy.validate_code("12ab")
 

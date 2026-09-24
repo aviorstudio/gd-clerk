@@ -1,5 +1,6 @@
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
+import { couplingHits } from "./consumer-boundary.mjs";
 
 const root = new URL("..", import.meta.url).pathname;
 const bridge = readFileSync(join(root, "addons/@aviorstudio_gd-clerk/javascript/gd_clerk_bridge.js"), "utf8");
@@ -50,6 +51,11 @@ if (/tokenCache\s*:/.test(bridge) || /localStorage\.setItem/.test(bridge)) {
 }
 if (/new\s+Ctor\s*\([^)]*,/.test(bridge)) {
   console.error("Clerk constructor must not receive option overrides");
+  process.exit(1);
+}
+const coupling = couplingHits(root);
+if (coupling.length) {
+  console.error(coupling.join("\n"));
   process.exit(1);
 }
 console.log("scan ok");

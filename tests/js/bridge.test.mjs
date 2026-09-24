@@ -158,7 +158,7 @@ function harness(options = {}) {
   if (options.mutate) options.mutate({ clerk, signIn, signUp, calls, page });
   const bridge = loadFactory()({
     getClerk: () => function Clerk() { return clerk; },
-    getLocation: () => ({ origin: options.origin || "http://localhost:3100" }),
+    getLocation: () => ({ origin: options.origin || "http://127.0.0.1:8080" }),
     getDocument: () => page.document,
     getSessionStorage: () => sessionStorage,
     MutationObserver: page.MutationObserver,
@@ -181,14 +181,14 @@ async function call(bridge, method, ...args) {
 const config = {
   publishable_key: pk(),
   frontend_api: "https://example.clerk.accounts.dev",
-  allowed_origins: ["http://localhost:3100", "https://app.revik.gg"],
+  allowed_origins: ["http://127.0.0.1:8080", "https://consumer.example"],
 };
 
 test("pinned error map and limits match the committed contract", () => {
   const factory = loadFactory();
   const bridge = factory({
     getClerk: () => function Clerk() { return { version: "6.33.0", async load() {} }; },
-    getLocation: () => ({ origin: "http://localhost:3100" }),
+    getLocation: () => ({ origin: "http://127.0.0.1:8080" }),
     getDocument: () => dom().document,
     getSessionStorage: () => ({ getItem() { return null; }, setItem() {}, removeItem() {} }),
     MutationObserver: class { observe() {} disconnect() {} },
@@ -212,17 +212,17 @@ test("configure rejects mismatched instance, secret, proxy, and unlisted origins
   assert.equal(mismatch.error_key, "CONFIG");
   const proxy = await call(bridge, "configure", { ...config, proxyUrl: "https://proxy.example" });
   assert.equal(proxy.error_key, "CONFIG");
-  const { bridge: other } = harness({ origin: "http://localhost:3101" });
+  const { bridge: other } = harness({ origin: "http://127.0.0.1:8081" });
   const origin = await call(other, "configure", config);
   assert.equal(origin.error_key, "CONFIG");
-  assert.equal(origin.message.includes("localhost:3101"), false);
+  assert.equal(origin.message.includes("127.0.0.1:8081"), false);
 });
 
-test("configure accepts the explicit Fields and production origins only when they are current", async () => {
+test("configure accepts listed origins only when they are current", async () => {
   const local = harness();
   const ok = await call(local.bridge, "configure", config);
   assert.equal(ok.state, "CONFIGURED");
-  const prod = harness({ origin: "https://app.revik.gg" });
+  const prod = harness({ origin: "https://consumer.example" });
   const prodOk = await call(prod.bridge, "configure", config);
   assert.equal(prodOk.state, "CONFIGURED");
 });
