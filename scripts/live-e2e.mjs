@@ -3,7 +3,7 @@ import { spawnSync } from "node:child_process";
 import { mkdtempSync, readFileSync, rmSync, unlinkSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { waitForOtp, plusAddress, parseInbox, recipientOnInbox, DEFAULT_OTP_PATTERN, assertOtpPattern } from "./agentmail-otp.mjs";
+import { waitForOtp, plusAddress, parseInbox, DEFAULT_OTP_PATTERN, assertOtpPattern } from "./agentmail-otp.mjs";
 import { buildEvidence, CAPTCHA_CONSTRAINT } from "./e2e-evidence.mjs";
 import { assertWebExport, createExportServer, exerciseBrowser, exportWebProject, prepareProject } from "./e2e-web.mjs";
 import { installRedactingConsole, redact } from "./redact.mjs";
@@ -89,8 +89,6 @@ export async function runLive(env, deps = {}) {
   const pattern = env.CLERK_OTP_PATTERN || DEFAULT_OTP_PATTERN;
   assertOtpPattern(pattern);
   const inbox = parseInbox(env.AGENTMAIL_INBOX);
-  const signInEmail = env.E2E_SIGN_IN_EMAIL || "";
-  if (signInEmail && !recipientOnInbox(inbox, signInEmail)) throw new Error("sign-in mailbox is not on the configured inbox");
   const pkg = JSON.parse(readFileSync(join(root, "package.json"), "utf8"));
   const tag = env.RELEASE_TAG || `v${pkg.version}`;
   const zipPath = deps.packageZip ? deps.packageZip() : packageZip();
@@ -122,7 +120,6 @@ export async function runLive(env, deps = {}) {
       publishableKey: env.CLERK_PUBLISHABLE_KEY,
       frontendApi: env.CLERK_FRONTEND_API,
       signUpEmail,
-      signInEmail,
       classify: classifySignUpAttempt,
       fetchOtp: ({ recipient, testStart }) => waitForOtp({
         inbox,
@@ -133,6 +130,9 @@ export async function runLive(env, deps = {}) {
         pattern,
       }).then((found) => found.code),
     });
+    if (report.email_code_sign_up !== "delivered" || report.captcha_challenge !== "not_presented") {
+      throw new Error("sign-up was not a normal email-code delivery; interactive challenge completion is not acceptance");
+    }
     return buildEvidence({
       email_code_sign_in: "delivered",
       email_code_sign_up: report.email_code_sign_up,
@@ -162,9 +162,7 @@ if (process.argv[1] && process.argv[1].endsWith("live-e2e.mjs")) {
   const evidencePath = join(root, "dist/e2e-evidence.json");
   runLive(process.env).then((evidence) => {
     writeFileSync(evidencePath, `${JSON.stringify(evidence, null, 2)}\n`);
-    console.log(evidence.captcha_challenge === "presented_unsolved"
-      ? "live evidence written; captcha challenge not accepted"
-      : "live evidence written; captcha challenge not presented");
+    console.log("live evidence written; normal email-code sign-up and sign-in; interactive challenge not claimed");
   }).catch((err) => {
     try { unlinkSync(evidencePath); } catch {}
     console.error(redact(err.message));

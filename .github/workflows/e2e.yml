@@ -36,7 +36,6 @@ jobs:
           AGENTMAIL_API_KEY: ${{ secrets.AGENTMAIL_API_KEY }}
           CLERK_OTP_FROM: ${{ secrets.CLERK_OTP_FROM }}
           CLERK_OTP_SUBJECT: ${{ secrets.CLERK_OTP_SUBJECT }}
-          E2E_SIGN_IN_EMAIL: ${{ secrets.E2E_SIGN_IN_EMAIL }}
           GODOT_BIN: /usr/local/bin/godot
           XDG_DATA_HOME: /tmp/godot-data
           XDG_CONFIG_HOME: /tmp/godot-config

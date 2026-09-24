@@ -234,20 +234,16 @@ export async function exerciseBrowser(options) {
       captcha: began.captcha,
     });
     if (classified.fail) throw new Error(classified.fail);
-    let signInEmail = options.signUpEmail;
-    if (classified.email_code_sign_up === "delivered") {
-      await completeCode(page, send, next, options.fetchOtp, options.signUpEmail, signUpStart);
-      const cleared = await send(page, next("sign_out"), 45000);
-      if (cleared.result.state !== "SIGNED_OUT") throw new Error("sign-up session could not be cleared");
-    } else if (!options.signInEmail) {
-      throw new Error("sign-up blocked by interactive Turnstile; no pre-created sign-in mailbox. Challenge was not marked accepted.");
-    } else {
-      signInEmail = options.signInEmail;
+    if (classified.email_code_sign_up !== "delivered" || classified.captcha_challenge !== "not_presented") {
+      throw new Error("sign-up was not a normal email-code delivery; interactive challenge completion is not acceptance");
     }
+    await completeCode(page, send, next, options.fetchOtp, options.signUpEmail, signUpStart);
+    const cleared = await send(page, next("sign_out"), 45000);
+    if (cleared.result.state !== "SIGNED_OUT") throw new Error("sign-up session could not be cleared");
     const signInStart = new Date().toISOString();
-    const signIn = await send(page, next("begin", { email: signInEmail, mode: 0 }), 45000);
+    const signIn = await send(page, next("begin", { email: options.signUpEmail, mode: 0 }), 45000);
     if (signIn.result.state !== "CODE_SENT") throw new Error(`sign-in failed: ${signIn.result.state}/${signIn.result.error_key}`);
-    await completeCode(page, send, next, options.fetchOtp, signInEmail, signInStart);
+    await completeCode(page, send, next, options.fetchOtp, options.signUpEmail, signInStart);
     await page.route("**/*", (route) => {
       if (route.request().url().startsWith(options.frontendApi)) route.abort();
       else route.continue();

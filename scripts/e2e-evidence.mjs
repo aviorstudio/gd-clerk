@@ -54,12 +54,22 @@ export function verifyEvidence(evidence, expected) {
     throw new Error("live evidence must be a structured object, not a sentinel file");
   }
   if (isSentinel(JSON.stringify(evidence))) throw new Error("sentinel is not live evidence");
+  if (evidence.captcha_challenge_accepted !== false) {
+    throw new Error("captcha challenge was not genuinely observed");
+  }
+  if (evidence.captcha_challenge === "observed" || evidence.captcha_challenge === "presented_unsolved") {
+    throw new Error("captcha challenge was not genuinely observed");
+  }
+  if (evidence.email_code_sign_up !== "delivered" || evidence.captcha_constraint !== "") {
+    throw new Error("live evidence accepts only a normal email-code sign-up; interactive challenge completion is not acceptance");
+  }
   const required = {
     schema: "gd-clerk.e2e.v2",
     source: "github-actions-e2e",
     live: true,
     mocked_clerk: false,
     email_code_sign_in: "delivered",
+    email_code_sign_up: "delivered",
     sign_out: "confirmed",
     reload_signed_out: "confirmed",
     network_failure: "observed",
@@ -67,6 +77,8 @@ export function verifyEvidence(evidence, expected) {
     clerk_version: "6.33.0",
     godot_version: "4.7.2-stable",
     runner: "scripts/live-e2e.mjs",
+    captcha_challenge: "not_presented",
+    captcha_constraint: "",
     captcha_policy: "smart",
     captcha_slot: "mounted",
     invisible_fallback: "refused",
@@ -74,23 +86,6 @@ export function verifyEvidence(evidence, expected) {
   };
   for (const [key, value] of Object.entries(required)) {
     if (evidence[key] !== value) throw new Error(`live evidence missing ${key}`);
-  }
-  if (evidence.captcha_challenge_accepted !== false) {
-    throw new Error("captcha challenge was not genuinely observed");
-  }
-  if (evidence.captcha_challenge === "observed") {
-    throw new Error("captcha challenge was not genuinely observed");
-  }
-  if (evidence.captcha_challenge === "not_presented") {
-    if (evidence.email_code_sign_up !== "delivered" || evidence.captcha_constraint !== "") {
-      throw new Error("live evidence sign-up outcome does not match the captcha observation");
-    }
-  } else if (evidence.captcha_challenge === "presented_unsolved") {
-    if (evidence.email_code_sign_up !== "blocked_by_challenge" || evidence.captcha_constraint !== CAPTCHA_CONSTRAINT) {
-      throw new Error("live evidence sign-up outcome does not match the captcha observation");
-    }
-  } else {
-    throw new Error("live evidence missing captcha_challenge");
   }
   if (JSON.stringify(evidence.exercised) !== JSON.stringify(EXERCISED)) {
     throw new Error("live evidence exercised set is incomplete");

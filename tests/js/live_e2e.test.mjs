@@ -64,15 +64,22 @@ test("evidence accepts an exercised normal path and rejects a claimed challenge"
   }, binding);
   assert.equal(normal.captcha_challenge_accepted, false);
   assert.equal(verifyEvidence(normal, binding).live, true);
-  const blocked = buildEvidence({
+  assert.throws(() => buildEvidence({
     email_code_sign_in: "delivered",
     email_code_sign_up: "blocked_by_challenge",
     captcha_challenge: "presented_unsolved",
     captcha_constraint: CAPTCHA_CONSTRAINT,
-  }, binding);
-  assert.equal(blocked.captcha_challenge_accepted, false);
+  }, binding), /not genuinely observed|not acceptance/);
   assert.throws(() => verifyEvidence({ ...normal, captcha_challenge: "observed" }, binding), /not genuinely observed/);
   assert.throws(() => verifyEvidence({ ...normal, captcha_challenge_accepted: true }, binding), /not genuinely observed/);
+});
+
+test("web export preset is the tracked nothreads Web preset", () => {
+  const listed = spawnSync("git", ["ls-files", "--error-unmatch", "tests/e2e/harness/export_presets.cfg"], { encoding: "utf8" });
+  assert.equal(listed.status, 0);
+  const text = readFileSync(new URL("../../tests/e2e/harness/export_presets.cfg", import.meta.url), "utf8");
+  assert.match(text, /platform="Web"/);
+  assert.match(text, /variant\/thread_support=false/);
 });
 
 test("redaction and mailbox helpers do not keep codes or leave the inbox", () => {
