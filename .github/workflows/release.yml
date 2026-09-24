@@ -1,0 +1,34 @@
+name: release
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      - name: Refuse until email-code e2e is accepted
+        run: |
+          set -euo pipefail
+          test -f docs/E2E_ACCEPTANCE.md
+          grep -qx 'ACCEPTED' docs/E2E_ACCEPTANCE.md
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: "22.20.0"
+          cache: npm
+      - run: npm ci
+      - run: node scripts/vendor-clerk.mjs --check
+      - run: node scripts/package-addon.mjs
+      - name: Publish the tested ZIP
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          tag="${GITHUB_REF_NAME}"
+          test "${tag}" = "v0.1.0"
+          gh release create "$tag" dist/@aviorstudio_gd-clerk.zip dist/@aviorstudio_gd-clerk.zip.sha256 --title "gd-clerk $tag" --notes-file docs/FAILURE_RECOVERY.md

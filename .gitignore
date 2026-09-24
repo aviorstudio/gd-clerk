@@ -1,0 +1,7 @@
+node_modules/
+dist/
+.godot/
+*.translation
+.import/
+export.cfg
+export_presets.cfg

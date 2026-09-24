@@ -1,0 +1,23 @@
+{
+  "name": "@aviorstudio/gd-clerk",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=20.9.0"
+  },
+  "scripts": {
+    "test": "node --test tests/js/*.test.mjs",
+    "test:browser": "node --test tests/browser/*.test.mjs",
+    "vendor": "node scripts/vendor-clerk.mjs",
+    "vendor:check": "node scripts/vendor-clerk.mjs --check",
+    "package": "node scripts/package-addon.mjs",
+    "scan": "node scripts/scan.mjs"
+  },
+  "dependencies": {
+    "@clerk/clerk-js": "6.33.0"
+  },
+  "devDependencies": {
+    "playwright": "1.63.0"
+  }
+}
