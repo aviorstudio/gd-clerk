@@ -7,9 +7,11 @@ export const TAG_RULES = ["creation", "update", "deletion"];
 export const REPOSITORY_ADMIN_ROLE_ID = 5;
 // Not pinned until a separate release credential exists. A null id fails closed.
 export const DEDICATED_PUBLISHER_ACTOR_ID = null;
-// Read-only remote check: main is unprotected, rulesets and environments are empty,
-// and the default Actions GITHUB_TOKEN permission is write. Tag rules do not close this.
-export const MAIN_PR_CI_RULE_GAP = "main has no pull-request or required-CI ruleset; tag rules do not protect main";
+// Classic main protection requires the Actions check `test` (app 15368), strict,
+// enforced for admins, with no reviews and no force/delete. Rulesets and environments
+// are still empty, and the default Actions GITHUB_TOKEN permission is read.
+// Tag rules do not protect main, and there is still no required pull request.
+export const MAIN_PR_CI_RULE_GAP = "main requires the Actions check test via classic protection, with no required pull request and no ruleset; tag rules do not protect main";
 
 export function assertReleaseRules({ environment, policies, ruleset }, options = {}) {
   if (!environment || environment.name !== RELEASE_ENVIRONMENT) {
