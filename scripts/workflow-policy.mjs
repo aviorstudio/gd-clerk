@@ -22,7 +22,12 @@ export function assertWorkflows(root) {
   const verify = jobBlock(release, "verify");
   const publish = jobBlock(release, "publish");
   if (/contents: write/.test(verify)) throw new Error("verify job must not have contents: write");
-  if (!/contents: write/.test(publish)) throw new Error("publish job must have contents: write");
+  if (/contents: write/.test(publish)) throw new Error("publish job must not grant contents: write");
+  if (/actions: write/.test(verify)) throw new Error("verify job must not have actions: write");
+  if (!/actions: read/.test(verify)) throw new Error("verify job must read e2e artifacts");
+  if (!/environment: release/.test(publish) || !/secrets\.RELEASE_TOKEN/.test(publish)) {
+    throw new Error("publish job must use the main-only release environment token");
+  }
   if (!/actions: read/.test(publish)) throw new Error("publish job must read the tested artifact");
   for (const forbidden of ["ACCEPTED", "docs/E2E_ACCEPTANCE.md", "docs/FAILURE_RECOVERY.md"]) {
     if (release.includes(forbidden) || e2e.includes(forbidden)) {
@@ -41,6 +46,8 @@ export function assertWorkflows(root) {
     "node scripts/release-notes.mjs",
     "git rev-parse origin/main",
     "gh release create",
+    "node scripts/check-release-rules.mjs --from-github",
+    "node scripts/zip-entry-sha.mjs",
   ];
   for (const item of required) {
     if (!release.includes(item)) throw new Error(`release workflow missing ${item}`);
@@ -56,6 +63,9 @@ export function assertWorkflows(root) {
   }
   if (!e2e.includes("node scripts/live-e2e.mjs") || !e2e.includes("name: e2e-evidence")) {
     throw new Error("e2e workflow must fail closed and only upload a real evidence artifact");
+  }
+  if (e2e.includes("have not been observed") || !e2e.includes("scripts/install-godot-templates.sh")) {
+    throw new Error("e2e workflow must run the real web export runner");
   }
 }
 

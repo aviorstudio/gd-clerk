@@ -13,4 +13,4 @@ This build:
 
 `appearance: interaction-only` is Clerk's own Turnstile setting. The slot stays in the DOM. Clerk expands it only when a visitor is challenged.
 
-Untested without a configured instance: a real Cloudflare interactive challenge, a false-positive visitor completing that challenge, and the instance CSP actually serving Turnstile. Those gates block release.
+The live runner mounts the slot inside a real Godot web export and refuses a testing token, an invisible widget, and any solver. Clerk's documented Playwright path (`setupClerkTestingToken` / `@clerk/testing`) bypasses Turnstile. That bypass is not a challenged-path observation, and this runner does not set it. Clerk does not publish a supported way to complete an interactive Smart challenge from automation without that bypass. If a visible Turnstile widget appears, the runner records `presented_unsolved` and does not mark the challenge accepted. A sign-up that completes with no visible challenge is the normal Smart path, not a challenged observation.

@@ -1,0 +1,20 @@
+; Engine configuration file.
+config_version=5
+
+[application]
+
+config/name="gd-clerk-e2e"
+run/main_scene="res://e2e_main.tscn"
+config/features=PackedStringArray("4.7", "GL Compatibility")
+
+[autoload]
+
+GdClerk="*res://addons/@aviorstudio_gd-clerk/gd_clerk.gd"
+
+[editor_plugins]
+
+enabled=PackedStringArray("res://addons/@aviorstudio_gd-clerk/plugin.cfg")
+
+[rendering]
+
+renderer/rendering_method="gl_compatibility"

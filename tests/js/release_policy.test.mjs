@@ -13,26 +13,50 @@ import { assertWorkflows } from "../../scripts/workflow-policy.mjs";
 const root = join(dirname(fileURLToPath(import.meta.url)), "../..");
 const commit = "a".repeat(40);
 const sha = "b".repeat(64);
-const expected = { commit, tag: "v0.1.0", package_sha256: sha };
+const browserSha = "c".repeat(64);
+const expected = { commit, tag: "v0.1.0", package_sha256: sha, clerk_browser_sha256: browserSha };
 
 function evidence(overrides = {}) {
   return {
-    schema: "gd-clerk.e2e.v1",
+    schema: "gd-clerk.e2e.v2",
     source: "github-actions-e2e",
     live: true,
     mocked_clerk: false,
     commit,
     tag: "v0.1.0",
     package_sha256: sha,
+    clerk_browser_sha256: browserSha,
     clerk_version: "6.33.0",
+    godot_version: "4.7.2-stable",
+    runner: "scripts/live-e2e.mjs",
     frontend_api: "https://example.clerk.accounts.dev",
     origin: "https://app.revik.gg",
     publishable_key_prefix: "pk_test_",
     email_code_sign_in: "delivered",
     email_code_sign_up: "delivered",
-    captcha_challenge: "observed",
+    captcha_challenge: "not_presented",
+    captcha_challenge_accepted: false,
+    captcha_constraint: "",
+    captcha_policy: "smart",
+    captcha_slot: "mounted",
+    invisible_fallback: "refused",
+    captcha_bypass: "refused",
     sign_out: "confirmed",
+    reload_signed_out: "confirmed",
+    network_failure: "observed",
     godot_web_export: "observed",
+    exercised: [
+      "captcha_bypass_refused",
+      "captcha_policy_smart",
+      "captcha_slot_mounted",
+      "email_code_sign_in",
+      "godot_web_export",
+      "invisible_fallback_refused",
+      "network_failure",
+      "reload_signed_out",
+      "sign_out",
+      "sign_up_attempted",
+    ],
     run_id: "123",
     run_url: "https://github.com/aviorstudio/gd-clerk/actions/runs/123",
     ...overrides,

@@ -29,10 +29,11 @@ jobs:
     timeout-minutes: 40
     permissions:
       contents: read
-      actions: write
+      actions: read
     outputs:
       commit: ${{ steps.identity.outputs.commit }}
       zip_sha256: ${{ steps.package.outputs.zip_sha256 }}
+      clerk_browser_sha256: ${{ steps.package.outputs.clerk_browser_sha256 }}
       tag: ${{ steps.identity.outputs.tag }}
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
@@ -54,6 +55,10 @@ jobs:
           RELEASE_COMMIT="$commit" node scripts/check-release-identity.mjs
           echo "commit=$commit" >> "$GITHUB_OUTPUT"
           echo "tag=$RELEASE_TAG" >> "$GITHUB_OUTPUT"
+      - name: Require main-only release rules
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: node scripts/check-release-rules.mjs --from-github
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
         with:
           node-version: "22.20.0"
@@ -83,8 +88,10 @@ jobs:
           node scripts/package-addon.mjs
           node scripts/verify-zip.mjs dist/@aviorstudio_gd-clerk.zip
           sha="$(awk '{print $1}' dist/@aviorstudio_gd-clerk.zip.sha256)"
+          browser="$(node scripts/zip-entry-sha.mjs dist/@aviorstudio_gd-clerk.zip addons/@aviorstudio_gd-clerk/javascript/clerk/clerk.browser.js)"
           PACKAGE_SHA256="$sha" node scripts/release-notes.mjs --tag "$RELEASE_TAG" --commit "$RELEASE_COMMIT" --zip-sha256 "$sha" --out dist/RELEASE_NOTES.md
           echo "zip_sha256=$sha" >> "$GITHUB_OUTPUT"
+          echo "clerk_browser_sha256=$browser" >> "$GITHUB_OUTPUT"
       - name: Installed ZIP editor lifecycle
         run: node scripts/editor-lifecycle.mjs dist/@aviorstudio_gd-clerk.zip
       - name: Require live e2e evidence for this artifact
@@ -93,6 +100,7 @@ jobs:
           RELEASE_TAG: ${{ steps.identity.outputs.tag }}
           RELEASE_COMMIT: ${{ steps.identity.outputs.commit }}
           PACKAGE_SHA256: ${{ steps.package.outputs.zip_sha256 }}
+          CLERK_BROWSER_SHA256: ${{ steps.package.outputs.clerk_browser_sha256 }}
         run: node scripts/require-live-evidence.mjs --from-github
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
@@ -110,8 +118,9 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     permissions:
-      contents: write
+      contents: read
       actions: read
+    environment: release
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
@@ -140,6 +149,7 @@ jobs:
           RELEASE_TAG: ${{ needs.verify.outputs.tag }}
           RELEASE_COMMIT: ${{ needs.verify.outputs.commit }}
           PACKAGE_SHA256: ${{ needs.verify.outputs.zip_sha256 }}
+          CLERK_BROWSER_SHA256: ${{ needs.verify.outputs.clerk_browser_sha256 }}
         run: |
           set -euo pipefail
           zip="$(find dist -name '@aviorstudio_gd-clerk.zip' -print -quit)"
@@ -148,25 +158,30 @@ jobs:
           test -n "$notes"
           actual="$(sha256sum "$zip" | awk '{print $1}')"
           test "$actual" = "$PACKAGE_SHA256"
+          browser="$(node scripts/zip-entry-sha.mjs "$zip" addons/@aviorstudio_gd-clerk/javascript/clerk/clerk.browser.js)"
+          test "$browser" = "$CLERK_BROWSER_SHA256"
           node scripts/verify-zip.mjs "$zip"
           node scripts/release-notes.mjs --check "$notes"
           node scripts/e2e-evidence.mjs --reject-committed
           node scripts/require-live-evidence.mjs --from-github
       - name: Publish the exact tested ZIP
         env:
-          GH_TOKEN: ${{ github.token }}
+          GH_TOKEN: ${{ secrets.RELEASE_TOKEN }}
           RELEASE_TAG: ${{ needs.verify.outputs.tag }}
           RELEASE_COMMIT: ${{ needs.verify.outputs.commit }}
         run: |
           set -euo pipefail
+          if [ -z "${GH_TOKEN}" ]; then
+            echo "release token is not configured"
+            exit 1
+          fi
           zip="$(find dist -name '@aviorstudio_gd-clerk.zip' -print -quit)"
           notes="$(find dist -name 'RELEASE_NOTES.md' -print -quit)"
           shafile="$(find dist -name '@aviorstudio_gd-clerk.zip.sha256' -print -quit)"
-          if git rev-parse -q --verify "refs/tags/${RELEASE_TAG}" >/dev/null; then
-            test "$(git rev-parse "${RELEASE_TAG}^{commit}")" = "$RELEASE_COMMIT"
+          if gh api "repos/aviorstudio/gd-clerk/git/ref/tags/${RELEASE_TAG}" --jq .object.sha > /tmp/gd-clerk-tag-sha 2>/dev/null; then
+            test "$(cat /tmp/gd-clerk-tag-sha)" = "$RELEASE_COMMIT"
           else
-            git tag "$RELEASE_TAG" "$RELEASE_COMMIT"
-            git push origin "refs/tags/${RELEASE_TAG}"
+            gh api repos/aviorstudio/gd-clerk/git/refs -f ref="refs/tags/${RELEASE_TAG}" -f sha="$RELEASE_COMMIT" >/dev/null
           fi
           if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
             echo "release already exists; refusing to replace it"

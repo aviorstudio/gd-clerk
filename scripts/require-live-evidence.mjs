@@ -8,6 +8,7 @@ function expectedFromEnv() {
     commit: process.env.RELEASE_COMMIT || "",
     tag: process.env.RELEASE_TAG || "",
     package_sha256: process.env.PACKAGE_SHA256 || "",
+    clerk_browser_sha256: process.env.CLERK_BROWSER_SHA256 || "",
   };
 }
 
