@@ -1,0 +1,15 @@
+Observed Clerk Frontend API error codes used by the addon mapping.
+Source: https://clerk.com/docs/guides/development/errors/frontend-api
+SDK pin: @clerk/clerk-js@6.33.0
+
+form_code_incorrect
+verification_expired
+too_many_requests
+signup_rate_limit_exceeded
+strategy_for_user_invalid
+signed_out
+captcha_invalid
+
+SDK-observed strings in the pinned browser bundle, not guessed:
+captcha_unavailable
+captcha_script_failed_to_load

@@ -1,1 +1,37 @@
 # gd-clerk
+
+Godot 4.7 addon for web email-code sign-in and sign-up through the pinned official `@clerk/clerk-js@6.33.0` browser bundle. Plugin version `0.1.0`.
+
+Install by copying `addons/@aviorstudio_gd-clerk/` into a Godot project, or unzip `dist/@aviorstudio_gd-clerk.zip` at the project root. The ZIP has 34 intentional entries: the 33 addon files in `scripts/package-allowlist.json`, including Godot `.uid` files and the pinned Clerk same-directory bundle, plus `PACKAGE_MANIFEST.json`. Enable the `GdClerk` plugin to add the optional `GdClerk` autoload and the web export injector. The script can also be instanced without the plugin.
+
+## Platform
+
+Web export only. Native and headless calls return `UNAVAILABLE` once and do not fall back to another provider, a password, or a stored credential. The browser SDK owns cookies and persistence. This addon does not store session tokens, codes, emails, secret keys, or a native credential store.
+
+## API
+
+`configure(ClerkConfig, done)` requires a `pk_test_` or `pk_live_` publishable key, the exact `https://` Frontend API origin encoded by that key, and an explicit allowed-origin list. The current page origin is the browser `location.origin` property. An empty or unsupported origin is rejected and is not included in the error. The consuming project supplies the key, Frontend API, and allowed origins. This repository does not embed a game origin, publishable key, inbox, or sender.
+
+`begin_email_code(email, mode, done)` takes `0` for `SIGN_IN` and `1` for `SIGN_UP`. Sign-in never creates an account and does not pass `signUpIfMissing`. Sign-up uses the legacy `client.signUp` resource. When the loaded environment explicitly reports captcha off, that call does not mount a slot. When Smart bot protection is enabled and both captcha site keys are present, a visible `#clerk-captcha` slot is required first. Future hook methods are not used.
+
+`complete_email_code`, `resend_email_code`, and `cancel_email_code` continue or stop that one attempt. Resend waits 30 seconds, matching Clerk's documented prebuilt cooldown. Callbacks run once.
+
+`get_session_token(min_validity_seconds, done)` returns an ephemeral token only when the unverified JWT `exp` claim is at least `min_validity_seconds` ahead. That claim is a scheduling hint. A Go server must verify the token and authorize the request. Concurrent refreshes share one `skipCache` fetch.
+
+`sign_out(done)` calls the non-serialized `ClerkConfig.revoke_session` callback once with an ephemeral session JWT and a one-shot ack. It does not call `signOut`. After that callback returns exactly `{ schema: "gd-clerk.revoke.v1", remote_confirmed: true, session_id, subject }` matching the snapshotted active session, and Clerk has not reported an active-session change since that snapshot, it calls `clerk.setActive({ session: null })` for the current tab only. A change that later returns to the same session id still counts. `SIGNED_OUT` means that ack was valid and `clerk.session` is null. It does not remove other same-browser sessions, other tabs, or devices. A reload or another tab may still show a stale session until the consumer rejects that identity. A missing callback, bad or late ack, timeout, throw, missing token, or failed deactivation returns `SIGN_OUT_FAILED` and sets a non-secret `sessionStorage` latch. The latch blocks email begin, complete, resend, and token mint until a later sign-out returns `SIGNED_OUT`. Sign-out itself can be retried. The addon does not store the JWT or put it in a result or signal.
+
+A sign-in `create` that returns null, throws a network error, or leaves the previous sign-in payload unchanged is `ERROR` / `NETWORK`. A payload that reports MFA, device trust, protect, or a transferable sign-in stays `NEEDS_MORE_STEPS` / `UNSUPPORTED_CHALLENGE`. Optional `phase` is an allowlisted enum and never contains a key, token, code, email, or session id.
+
+`session_changed` emits `signed_in`, `status`, and `protected_actions_blocked` only. It never includes a token, code, or email.
+
+Unexpected MFA, device trust, protect checks, session tasks, and missing sign-up fields fail closed with `NEEDS_MORE_STEPS` / `UNSUPPORTED_CHALLENGE`.
+
+## SDK pin
+
+Vanilla `clerk.client.signIn` and `clerk.client.signUp` are the documented legacy resources. `SignInFuture` and `SignUpFuture` exist on the pinned types only as `__internal_future`, which framework hooks use. This addon does not call those methods, `emailCode`, `verifications`, or `finalize`.
+
+The browser files under `javascript/clerk/` are the exact `6.33.0` `clerk.browser.js` build and its same-directory chunks. They are not loaded from a floating CDN, and the export HTML does not parse that bundle before `configure`. After the project-supplied publishable key passes the existing checks, the bridge inserts the same-origin file and calls `load()` on the instance the bundle creates. `npm ci` plus `node scripts/vendor-clerk.mjs --check` verifies the lockfile integrity.
+
+## Not released
+
+There is no production release. This addon is game-agnostic. A consuming project may test the candidate ZIP in an isolated integration. That ZIP is not a released pin. Live email-code proof belongs to the consuming project. This repository does not run that proof, does not read another repository's evidence, and does not accept a committed acceptance file. The browser fixture mocks the Smart challenge and does not claim interactive challenge completion. See `docs/CONSUMER.md`, `docs/CAPTCHA.md`, `docs/CSP.md`, and `docs/FAILURE_RECOVERY.md`.
