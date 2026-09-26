@@ -11,6 +11,10 @@ var _session_cb: Variant = null
 var _session_relay: RefCounted = null
 var _listener_ready: bool = false
 var _relays: Array = []
+var _revoke_session: Callable = Callable()
+var _revoke_relay: RefCounted = null
+var _revoke_js: Variant = null
+var _revoke_ack_attempt: int = 0
 
 func configure(config: ClerkConfig, done: Callable) -> void:
 	if not _is_web():
@@ -26,6 +30,8 @@ func configure(config: ClerkConfig, done: Callable) -> void:
 		_finish_now(done, ClerkResult.error("CONFIG", "Clerk bridge is not loaded."))
 		return
 	_ensure_listener()
+	_revoke_session = config.revoke_session
+	_bind_revoke_session()
 	var id := _track(done)
 	var cb: Variant = _make_callback(id, done, false, false)
 	if cb == null:
@@ -130,6 +136,7 @@ func sign_out(done: Callable) -> void:
 	var cb: Variant = _make_callback(id, done, false, false)
 	if cb == null:
 		return
+	_bind_revoke_session()
 	bridge.call("signOut", cb)
 
 func _is_web() -> bool:
@@ -260,6 +267,32 @@ func _ensure_listener() -> void:
 	bridge.call("setSessionListener", _session_cb)
 	_listener_ready = true
 
+func _bind_revoke_session() -> void:
+	var bridge := _bridge()
+	var js := _js()
+	if bridge == null or js == null:
+		return
+	if not _revoke_session.is_valid():
+		bridge.call("setRevokeSession", null)
+		return
+	if _revoke_js == null:
+		var relay := _RevokeRelay.new()
+		relay.owner = self
+		_revoke_relay = relay
+		_revoke_js = js.call("create_callback", Callable(relay, "on_jwt"))
+	bridge.call("setRevokeSession", _revoke_js)
+
+func _submit_revoke(payload: Variant) -> void:
+	var bridge := _bridge()
+	if bridge == null:
+		return
+	var raw := ""
+	if payload is Dictionary:
+		raw = JSON.stringify(payload)
+	elif typeof(payload) == TYPE_STRING:
+		raw = payload
+	bridge.call("submitRevokeAck", raw)
+
 func _on_session_payload(raw: String) -> void:
 	session_changed.emit(SessionState.from_json(raw))
 
@@ -305,3 +338,26 @@ class _SessionRelay:
 		if settled or not is_instance_valid(owner) or args.is_empty():
 			return
 		owner._on_session_payload(str(args[0]))
+
+class _RevokeRelay:
+	extends RefCounted
+	var owner: Node
+	var attempt: int = 0
+
+	func on_jwt(args: Array) -> void:
+		if not is_instance_valid(owner):
+			return
+		attempt += 1
+		var mine := attempt
+		var jwt := ""
+		if not args.is_empty():
+			jwt = str(args[0])
+		if jwt == "" or not owner._revoke_session.is_valid():
+			owner._submit_revoke("")
+			return
+		var ack := func(payload: Variant) -> void:
+			if not is_instance_valid(owner) or mine != attempt or owner._revoke_ack_attempt == mine:
+				return
+			owner._revoke_ack_attempt = mine
+			owner._submit_revoke(payload)
+		owner._revoke_session.call(jwt, ack)

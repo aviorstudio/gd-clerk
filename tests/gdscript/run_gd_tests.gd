@@ -11,6 +11,7 @@ func _run() -> bool:
 	failed = _expect(_origin_closed(), "empty and unsupported origins fail closed without echoing") or failed
 	failed = _expect(_html(), "web export injects pinned local scripts") or failed
 	failed = _expect(_result_drops_secrets(), "results drop unexpected token and email fields") or failed
+	failed = _expect(_config_omits_revoke(), "revoke callback is not serialized and phases stay allowlisted") or failed
 	failed = _expect(_relay_lifecycle(), "relays are released, cancelled once, and ignored after free") or failed
 	failed = _expect(_relay_cap_and_callback_free(), "relay cap fails closed and a finished callback can free its owner") or failed
 	failed = _expect(_session_owner_freed(), "session callback does not touch a freed owner") or failed
@@ -66,6 +67,16 @@ func _policy() -> bool:
 	if ClerkPolicy.validate_config(config, "http://127.0.0.1:8080") == "":
 		return false
 	return ClerkPolicy.validate_email("person@example.com") and not ClerkPolicy.validate_email("not an email") and ClerkPolicy.validate_code("123456") and not ClerkPolicy.validate_code("12ab")
+
+func _config_omits_revoke() -> bool:
+	var config := ClerkConfig.new()
+	config.revoke_session = func(_jwt: String, _done: Callable) -> void:
+		pass
+	var data := config.to_dictionary()
+	var raw := JSON.stringify(data)
+	var kept := ClerkResult.from_json('{"state":"SIGNED_OUT","phase":"tab_deactivated","token":"aaa.not-a-token.sig"}', false)
+	var dropped := ClerkResult.from_json('{"state":"SIGN_OUT_FAILED","phase":"not_a_phase"}', false)
+	return not data.has("revoke_session") and not raw.contains("revoke") and kept.phase == "tab_deactivated" and kept.token == "" and dropped.phase == ""
 
 func _origin_closed() -> bool:
 	var clerk = load("res://addons/@aviorstudio_gd-clerk/gd_clerk.gd").new()

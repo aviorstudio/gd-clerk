@@ -9,9 +9,6 @@ var retryable: bool = false
 var phase: String = ""
 
 const _PHASES: Array[String] = [
-	"sign_out_thrown",
-	"sign_out_resolved_present",
-	"sign_out_resolved_absent",
 	"sign_out_latched",
 	"create_null",
 	"create_stale",
@@ -20,6 +17,15 @@ const _PHASES: Array[String] = [
 	"missing_factor",
 	"protect",
 	"transferable",
+	"revoke_missing",
+	"revoke_no_session",
+	"revoke_no_token",
+	"revoke_thrown",
+	"revoke_timeout",
+	"revoke_rejected",
+	"revoke_stale",
+	"deactivate_failed",
+	"tab_deactivated",
 ]
 
 static func unavailable() -> ClerkResult:

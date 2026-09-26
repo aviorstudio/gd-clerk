@@ -74,6 +74,10 @@
     var signOutInflight = null;
     var sessionListener = null;
     var configured = false;
+    var revokeSession = null;
+    var pendingRevoke = null;
+    var observedSid = "";
+    var activeGeneration = 0;
 
     function now() {
       return deps.now();
@@ -118,10 +122,16 @@
     }
 
     var PHASES = {
-      sign_out_thrown: 1,
-      sign_out_resolved_present: 1,
-      sign_out_resolved_absent: 1,
       sign_out_latched: 1,
+      revoke_missing: 1,
+      revoke_no_session: 1,
+      revoke_no_token: 1,
+      revoke_thrown: 1,
+      revoke_timeout: 1,
+      revoke_rejected: 1,
+      revoke_stale: 1,
+      deactivate_failed: 1,
+      tab_deactivated: 1,
       create_null: 1,
       create_stale: 1,
       create_thrown: 1,
@@ -140,8 +150,6 @@
       finish(result("SIGN_OUT_FAILED", "UNKNOWN", MESSAGES.PROTECTED_BLOCKED, { retryable: true, phase: "sign_out_latched" }));
       return true;
     }
-
-    function suppressNavigation() {}
 
     function challengePhase(resource) {
       if (resource && resource.isTransferable) return "transferable";
@@ -623,12 +631,6 @@
     async function recoverSignOut() {
       if (!readLatch()) return;
       protectedBlocked = true;
-      try {
-        await withTimeout(clerk.signOut(suppressNavigation), LIMITS.network_timeout_ms);
-      } catch (e) {
-        return;
-      }
-      if (sessionAbsent()) clearLatch();
     }
 
     async function configure(configOrJson, cb) {
@@ -1086,18 +1088,130 @@
     async function doSignOut() {
       setLatch();
       emitSession();
-      try {
-        await withTimeout(clerk.signOut(suppressNavigation), LIMITS.network_timeout_ms);
-      } catch (e) {
-        return result("SIGN_OUT_FAILED", isNetwork(e) ? "NETWORK" : "UNKNOWN", MESSAGES.SIGN_OUT_FAILED, { retryable: true, phase: "sign_out_thrown" });
+      if (typeof revokeSession !== "function") {
+        return failedRevoke("CONFIG", "revoke_missing");
       }
-      if (!sessionAbsent()) {
-        return result("SIGN_OUT_FAILED", "UNKNOWN", MESSAGES.SIGN_OUT_FAILED, { retryable: true, phase: "sign_out_resolved_present" });
+      var sid = currentSid();
+      var sub = currentSub();
+      if (!sid || !sub || !clerk.session || typeof clerk.session.getToken !== "function" || typeof clerk.setActive !== "function") {
+        return failedRevoke("UNKNOWN", "revoke_no_session");
+      }
+      var generation = touchGeneration();
+      var snapshot = { sid: sid, sub: sub, generation: generation };
+      var token = "";
+      try {
+        token = await withTimeout(clerk.session.getToken({ skipCache: true }), LIMITS.network_timeout_ms);
+      } catch (e) {
+        return failedRevoke(isNetwork(e) ? "NETWORK" : "UNKNOWN", "revoke_no_token");
+      }
+      if (typeof token !== "string" || token === "") {
+        return failedRevoke("UNKNOWN", "revoke_no_token");
+      }
+      var ackRaw;
+      try {
+        ackRaw = await requestRevokeAck(token, snapshot.generation);
+      } catch (e) {
+        token = "";
+        return failedRevoke("UNKNOWN", "revoke_thrown");
+      }
+      token = "";
+      if (ackRaw && ackRaw.thrown) return failedRevoke("UNKNOWN", "revoke_thrown");
+      if (ackRaw == null) return failedRevoke("UNKNOWN", "revoke_timeout");
+      if (touchGeneration() !== snapshot.generation || currentSid() !== snapshot.sid) {
+        return failedRevoke("UNKNOWN", "revoke_stale");
+      }
+      var ack = parseRevokeAck(ackRaw);
+      if (!ack || ack.session_id !== snapshot.sid || ack.subject !== snapshot.sub) {
+        return failedRevoke("UNKNOWN", "revoke_rejected");
+      }
+      try {
+        await withTimeout(clerk.setActive({ session: null }), LIMITS.network_timeout_ms);
+      } catch (e) {
+        return failedRevoke(isNetwork(e) ? "NETWORK" : "UNKNOWN", "deactivate_failed");
+      }
+      if (clerk.session !== null || currentSid() === snapshot.sid) {
+        return failedRevoke("UNKNOWN", "deactivate_failed");
       }
       clearLatch();
       flow = null;
       emitSession();
-      return result("SIGNED_OUT", "", MESSAGES.SIGNED_OUT, { phase: "sign_out_resolved_absent" });
+      return result("SIGNED_OUT", "", MESSAGES.SIGNED_OUT, { phase: "tab_deactivated" });
+    }
+
+    function failedRevoke(errorKey, phase) {
+      emitSession();
+      return result("SIGN_OUT_FAILED", errorKey, MESSAGES.SIGN_OUT_FAILED, { retryable: true, phase: phase });
+    }
+
+    function currentSid() {
+      if (!clerk || clerk.session == null || typeof clerk.session.id !== "string" || clerk.session.id === "") return "";
+      return clerk.session.id;
+    }
+
+    function currentSub() {
+      if (!clerk) return "";
+      if (clerk.user && typeof clerk.user.id === "string" && clerk.user.id !== "") return clerk.user.id;
+      if (clerk.session && clerk.session.user && typeof clerk.session.user.id === "string") return clerk.session.user.id;
+      return "";
+    }
+
+    function touchGeneration() {
+      var sid = currentSid();
+      if (sid !== observedSid) {
+        observedSid = sid;
+        activeGeneration += 1;
+      }
+      return activeGeneration;
+    }
+
+    function requestRevokeAck(token, generation) {
+      return new Promise(function (resolve) {
+        var settled = false;
+        function finish(value) {
+          if (settled) return;
+          settled = true;
+          if (pendingRevoke && pendingRevoke.generation === generation) {
+            deps.clearTimer(pendingRevoke.timer);
+            pendingRevoke = null;
+          }
+          resolve(value);
+        }
+        var timer = deps.setTimer(function () { finish(null); }, LIMITS.network_timeout_ms);
+        pendingRevoke = { generation: generation, timer: timer, resolve: finish };
+        try {
+          revokeSession(token);
+        } catch (e) {
+          finish({ thrown: true });
+        }
+      });
+    }
+
+    function submitRevokeAck(raw) {
+      var pending = pendingRevoke;
+      if (!pending || typeof pending.resolve !== "function") return;
+      pending.resolve(raw);
+    }
+
+    function parseRevokeAck(raw) {
+      var data = raw;
+      if (typeof raw === "string") {
+        try { data = JSON.parse(raw); } catch (e) { return null; }
+      }
+      if (!data || typeof data !== "object" || Array.isArray(data)) return null;
+      var keys = Object.keys(data);
+      if (keys.length !== 4) return null;
+      if (data.schema !== "gd-clerk.revoke.v1") return null;
+      if (data.remote_confirmed !== true) return null;
+      if (typeof data.session_id !== "string" || data.session_id === "") return null;
+      if (typeof data.subject !== "string" || data.subject === "") return null;
+      return {
+        session_id: data.session_id,
+        subject: data.subject
+      };
+    }
+
+    function setRevokeSession(cb) {
+      revokeSession = typeof cb === "function" ? cb : null;
     }
 
     function signOut(cb) {
@@ -1123,6 +1237,8 @@
       cancelEmailCode: cancelEmailCode,
       getSessionToken: getSessionToken,
       signOut: signOut,
+      setRevokeSession: setRevokeSession,
+      submitRevokeAck: submitRevokeAck,
       setSessionListener: function (cb) {
         sessionListener = cb;
         emitSession();

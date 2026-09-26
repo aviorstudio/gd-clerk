@@ -30,6 +30,39 @@ function jwt(exp) {
   return `aaa.${payload}.sig`;
 }
 
+function revokeAck(sessionId, subject, extra = {}) {
+  return JSON.stringify({
+    schema: "gd-clerk.revoke.v1",
+    remote_confirmed: true,
+    session_id: sessionId,
+    subject,
+    ...extra,
+  });
+}
+
+function primeSession(h, options = {}) {
+  const token = options.token || jwt(Math.floor(Date.now() / 1000) + 50);
+  h.clerk.session = {
+    id: "sess_current",
+    status: "active",
+    async getToken() { return token; },
+  };
+  h.clerk.user = { id: "user_current" };
+  h.clerk.isSignedIn = true;
+  const sessions = [{ id: "sess_current", status: "active" }];
+  if (options.other) sessions.push(options.other);
+  h.clerk.client.sessions = sessions;
+  h.clerk.client.signedInSessions = sessions.slice();
+  h.clerk.signOut = async () => { throw new Error("signOut must not be called"); };
+  h.clerk.setActive = async (params) => {
+    h.calls.push(["setActive", params]);
+    if (!options.keepSession) {
+      h.clerk.session = null;
+      h.clerk.user = null;
+    }
+  };
+}
+
 function dom() {
   const observers = [];
   const elements = new Map();
@@ -190,7 +223,7 @@ function harness(options = {}) {
     getSessionStorage: () => sessionStorage,
     MutationObserver: page.MutationObserver,
     now: () => options.now || 1_700_000_000_000,
-    setTimer: (fn, ms) => setTimeout(fn, options.timerMs ?? ms),
+    setTimer: options.setTimer || ((fn, ms) => setTimeout(fn, options.timerMs ?? ms)),
     clearTimer: (id) => clearTimeout(id),
     atob: (value) => Buffer.from(value, "base64").toString("utf8"),
     loadClerkScript: options.loadClerkScript,
@@ -703,76 +736,59 @@ test("session token refresh is coalesced and rejected when exp is too soon", asy
   assert.equal(denied.token, undefined);
 });
 
-test("sign-out is confirmed only after remote success and an absent browser session", async () => {
+test("sign-out is confirmed only after a matching revoke ack and current-tab deactivation", async () => {
   const h = harness();
   await call(h.bridge, "configure", config);
-  await call(h.bridge, "beginEmailCode", "person@example.com", "SIGN_IN");
-  await call(h.bridge, "completeEmailCode", "123456");
-  h.clerk.signOut = async () => { throw new TypeError("network down"); };
+  primeSession(h, { other: { id: "sess_other", status: "active" } });
+  let calls = 0;
+  let sawToken = false;
+  h.bridge.setRevokeSession((token) => {
+    calls += 1;
+    sawToken = typeof token === "string" && token.startsWith("aaa.");
+    h.bridge.submitRevokeAck(revokeAck("sess_current", "user_current"));
+    h.bridge.submitRevokeAck(revokeAck("sess_current", "user_current"));
+  });
+  const signedOut = await call(h.bridge, "signOut");
+  assert.equal(signedOut.state, "SIGNED_OUT");
+  assert.equal(signedOut.phase, "tab_deactivated");
+  assert.equal(calls, 1);
+  assert.equal(sawToken, true);
+  assert.equal(JSON.stringify(signedOut).includes("aaa."), false);
+  assert.equal(h.clerk.session, null);
+  assert.equal(h.clerk.client.sessions.some((item) => item.id === "sess_other"), true);
+  assert.equal(h.calls.filter((item) => item[0] === "setActive").length, 1);
+  const params = h.calls.find((item) => item[0] === "setActive")[1];
+  assert.equal(params.session, null);
+  assert.equal(Object.keys(params).join(","), "session");
+  assert.equal(h.calls.some((item) => item[0] === "signOut"), false);
+  assert.equal(h.store.get("gd_clerk_sign_out_incomplete"), undefined);
+});
+
+test("sign-out fails closed without a revoke callback and keeps the latch across reload", async () => {
+  const h = harness();
+  await call(h.bridge, "configure", config);
+  primeSession(h);
   const failed = await call(h.bridge, "signOut");
   assert.equal(failed.state, "SIGN_OUT_FAILED");
-  assert.equal(failed.retryable, true);
-  assert.equal(failed.error_key, "NETWORK");
-  const blocked = await call(h.bridge, "getSessionToken", 10);
-  assert.equal(blocked.state, "SIGN_OUT_FAILED");
-  assert.equal(blocked.token, undefined);
-  const reloaded = harness({ store: h.store, mutate({ clerk }) {
-    clerk.session = { status: "active", async getToken() { return jwt(Math.floor(Date.now() / 1000) + 50); } };
-    clerk.user = { id: "user_1" };
-    clerk.isSignedIn = true;
-    clerk.signOut = async () => { throw new TypeError("still down"); };
-  } });
+  assert.equal(failed.phase, "revoke_missing");
+  assert.equal(h.calls.some((item) => item[0] === "getToken"), false);
+  const reloaded = harness({ store: h.store });
+  primeSession(reloaded);
   const configured = await call(reloaded.bridge, "configure", config);
   assert.notEqual(configured.state, "SIGNED_OUT");
   const stillBlocked = await call(reloaded.bridge, "getSessionToken", 10);
   assert.equal(stillBlocked.token, undefined);
-  reloaded.clerk.signOut = async () => {
-    reloaded.clerk.session = null;
-    reloaded.clerk.user = null;
-    reloaded.clerk.isSignedIn = false;
-    reloaded.clerk.client.sessions = [];
-    reloaded.clerk.client.signedInSessions = [];
-  };
-  const signedOut = await call(reloaded.bridge, "signOut");
-  assert.equal(signedOut.state, "SIGNED_OUT");
-  assert.equal(signedOut.phase, "sign_out_resolved_absent");
-  assert.equal(h.store.get("gd_clerk_sign_out_incomplete"), undefined);
-});
-
-test("sign-out passes a callback and does not navigate", async () => {
-  let navigated = false;
-  let callback = "missing";
-  const h = harness({ mutate({ clerk }) {
-    clerk.signOut = async (cb) => {
-      callback = typeof cb;
-      if (typeof cb !== "function") navigated = true;
-      clerk.session = null;
-      clerk.user = null;
-      clerk.isSignedIn = false;
-      clerk.client.sessions = [];
-      clerk.client.signedInSessions = [];
-    };
-  } });
-  await call(h.bridge, "configure", config);
-  const signedOut = await call(h.bridge, "signOut");
-  assert.equal(callback, "function");
-  assert.equal(navigated, false);
-  assert.equal(signedOut.state, "SIGNED_OUT");
-  assert.equal(JSON.stringify(signedOut).includes("@"), false);
+  assert.equal(reloaded.calls.some((item) => item[0] === "setActive"), false);
 });
 
 test("a failed sign-out blocks email flows and token mint but still allows retry", async () => {
-  let attempts = 0;
-  const h = harness({ mutate({ clerk }) {
-    clerk.session = { status: "active", async getToken() { return jwt(Math.floor(Date.now() / 1000) + 50); } };
-    clerk.user = { id: "user_1" };
-    clerk.isSignedIn = true;
-    clerk.signOut = async () => { attempts += 1; throw new TypeError("network down"); };
-  } });
+  const h = harness();
   await call(h.bridge, "configure", config);
+  primeSession(h);
+  h.bridge.setRevokeSession(() => { throw new Error("adapter down"); });
   const failed = await call(h.bridge, "signOut");
   assert.equal(failed.state, "SIGN_OUT_FAILED");
-  assert.equal(failed.phase, "sign_out_thrown");
+  assert.equal(failed.phase, "revoke_thrown");
   for (const mode of ["SIGN_IN", "SIGN_UP"]) {
     const begin = await call(h.bridge, "beginEmailCode", "person@example.com", mode);
     assert.equal(begin.state, "SIGN_OUT_FAILED");
@@ -784,11 +800,64 @@ test("a failed sign-out blocks email flows and token mint but still allows retry
   assert.equal(complete.phase, "sign_out_latched");
   assert.equal(resend.phase, "sign_out_latched");
   assert.equal(token.token, undefined);
+  h.bridge.setRevokeSession((value) => {
+    h.bridge.submitRevokeAck(revokeAck("sess_current", "user_current", { token: value }));
+  });
+  const rejected = await call(h.bridge, "signOut");
+  assert.equal(rejected.phase, "revoke_rejected");
+  assert.equal(JSON.stringify(rejected).includes("aaa."), false);
+  h.bridge.setRevokeSession(() => {
+    h.bridge.submitRevokeAck(revokeAck("sess_current", "user_current"));
+  });
   const retried = await call(h.bridge, "signOut");
-  assert.equal(attempts, 2);
-  assert.equal(retried.state, "SIGN_OUT_FAILED");
+  assert.equal(retried.state, "SIGNED_OUT");
   assert.equal(h.calls.some((item) => item[0] === "signIn.create"), false);
   assert.equal(h.calls.some((item) => item[0] === "signUp.create"), false);
+});
+
+test("revoke ack races fail closed and do not deactivate early", async () => {
+  const leaked = "aaa.leaked-token.sig";
+  const timed = harness({ setTimer: (fn, ms) => setTimeout(fn, ms === 30000 ? 0 : ms) });
+  await call(timed.bridge, "configure", config);
+  primeSession(timed, { token: leaked });
+  timed.bridge.setRevokeSession(() => {});
+  const timeout = await call(timed.bridge, "signOut");
+  assert.equal(timeout.phase, "revoke_timeout");
+  assert.equal(JSON.stringify(timeout).includes(leaked), false);
+  timed.bridge.submitRevokeAck(revokeAck("sess_current", "user_current"));
+  assert.equal(timed.calls.some((item) => item[0] === "setActive"), false);
+
+  const stale = harness();
+  await call(stale.bridge, "configure", config);
+  primeSession(stale);
+  stale.bridge.setRevokeSession(() => {
+    stale.clerk.session = { id: "sess_replaced", status: "active", async getToken() { return "unused"; } };
+    stale.bridge.submitRevokeAck(revokeAck("sess_current", "user_current"));
+  });
+  const replaced = await call(stale.bridge, "signOut");
+  assert.equal(replaced.phase, "revoke_stale");
+  assert.equal(stale.calls.some((item) => item[0] === "setActive"), false);
+
+  const offline = harness();
+  await call(offline.bridge, "configure", config);
+  primeSession(offline);
+  offline.clerk.session.getToken = async () => { throw new TypeError("Failed to fetch"); };
+  let asked = false;
+  offline.bridge.setRevokeSession(() => { asked = true; });
+  const networked = await call(offline.bridge, "signOut");
+  assert.equal(networked.error_key, "NETWORK");
+  assert.equal(networked.phase, "revoke_no_token");
+  assert.equal(asked, false);
+
+  const local = harness();
+  await call(local.bridge, "configure", config);
+  primeSession(local, { keepSession: true });
+  local.bridge.setRevokeSession(() => {
+    local.bridge.submitRevokeAck(revokeAck("sess_current", "user_current"));
+  });
+  const present = await call(local.bridge, "signOut");
+  assert.equal(present.phase, "deactivate_failed");
+  assert.equal(local.store.get("gd_clerk_sign_out_incomplete"), "1");
 });
 
 test("null or stale sign-in create is network, not an unsupported challenge", async () => {
@@ -829,4 +898,7 @@ test("bridge source does not mix future methods or call FAPI itself", () => {
   assert.equal(source.includes("new Clerk"), false);
   assert.equal(source.includes("gd-clerk/clerk.browser.js"), true);
   assert.equal(source.includes("clerk.load()"), true);
+  assert.equal(source.includes("clerk.signOut"), false);
+  assert.equal(source.includes("setActive({ session: null })"), true);
+  assert.equal(source.includes("gd-clerk.revoke.v1"), true);
 });

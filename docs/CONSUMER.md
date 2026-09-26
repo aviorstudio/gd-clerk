@@ -39,6 +39,6 @@ A redacted report may be sent to the maintainer who owns that proof. This reposi
 
 A presented challenge is not acceptance. This repository's browser fixture mocks the Smart challenge and is not that proof. Whether captcha is off is read from the loaded Clerk instance, not from a separate dashboard request. Reload after changing bot protection before judging that value. A consumer-supplied slot must be an unhidden `<div id="clerk-captcha">`, with optional `data-cl-theme`, `data-cl-size`, or `data-cl-language` only.
 
-Do not submit `sign_out: confirmed` for the current pin. `SIGNED_OUT` still means only that the SDK call resolved and the browser session is absent, which is not a remote delete. Wait until that proof is decided before retesting sign-out.
+`sign_out: confirmed` means the consumer revoke callback returned a matching `gd-clerk.revoke.v1` ack and this tab's active session became null. It does not mean other tabs, other same-browser sessions, or other devices signed out. `reload_signed_out: confirmed` means a reload no longer treats that session as active, or the consumer rejected it. A local null session without the ack is not confirmed. This repository still does not fetch or accept that report by itself.
 
 The release publish job fails closed until a later code change. That change is not automatic enforcement of another repository, and it is not proof a report was reviewed.

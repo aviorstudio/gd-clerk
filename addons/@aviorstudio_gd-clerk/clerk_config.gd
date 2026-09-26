@@ -4,6 +4,8 @@ extends RefCounted
 var publishable_key: String = ""
 var frontend_api: String = ""
 var allowed_origins: PackedStringArray = PackedStringArray()
+## Consumer-owned remote revoke. Called once with an ephemeral session JWT and a one-shot ack Callable. Never serialized.
+var revoke_session: Callable = Callable()
 
 func to_dictionary() -> Dictionary:
 	return {
