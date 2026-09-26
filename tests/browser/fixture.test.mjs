@@ -60,9 +60,11 @@ test("real browser loads the pinned clerk bundle and refuses invisible signup fa
     assert.equal(version, "6.33.0");
     const result = await page.evaluate(async () => {
       const bridge = window.GdClerkBridge._createForTest({
-        getClerk: () => function Clerk() {
-          return {
+        getClerk: () => ({
             version: "6.33.0",
+            publishableKey: "pk_test_" + btoa("example.clerk.accounts.dev$").replace(/=+$/g, ""),
+            proxyUrl: "",
+            domain: "",
             isSignedIn: false,
             session: null,
             user: null,
@@ -93,8 +95,8 @@ test("real browser loads the pinned clerk bundle and refuses invisible signup fa
             async setActive() {},
             async signOut() {},
             addListener() {},
-          };
-        },
+        }),
+        getWindow: () => window,
         getLocation: () => window.location,
         getDocument: () => document,
         getSessionStorage: () => window.sessionStorage,

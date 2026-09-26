@@ -156,8 +156,13 @@ function harness(options = {}) {
     return options.token || jwt(Math.floor(Date.now() / 1000) + 50);
   }
   if (options.mutate) options.mutate({ clerk, signIn, signUp, calls, page });
+  if (clerk.publishableKey == null) clerk.publishableKey = pk();
+  if (clerk.proxyUrl == null) clerk.proxyUrl = "";
+  if (clerk.domain == null) clerk.domain = "";
+  const pageWindow = options.window || {};
   const bridge = loadFactory()({
-    getClerk: () => function Clerk() { return clerk; },
+    getClerk: () => (options.clerkValue !== undefined ? options.clerkValue : clerk),
+    getWindow: () => pageWindow,
     getLocation: () => ({ origin: options.origin || "http://127.0.0.1:8080" }),
     getDocument: () => page.document,
     getSessionStorage: () => sessionStorage,
@@ -166,8 +171,9 @@ function harness(options = {}) {
     setTimer: (fn, ms) => setTimeout(fn, options.timerMs ?? ms),
     clearTimer: (id) => clearTimeout(id),
     atob: (value) => Buffer.from(value, "base64").toString("utf8"),
+    loadClerkScript: options.loadClerkScript,
   });
-  return { bridge, calls, clerk, signIn, signUp, page, store };
+  return { bridge, calls, clerk, signIn, signUp, page, store, pageWindow };
 }
 
 async function call(bridge, method, ...args) {
@@ -222,9 +228,92 @@ test("configure accepts listed origins only when they are current", async () => 
   const local = harness();
   const ok = await call(local.bridge, "configure", config);
   assert.equal(ok.state, "CONFIGURED");
+  assert.equal(local.calls.some((item) => item[0] === "load"), true);
   const prod = harness({ origin: "https://consumer.example" });
   const prodOk = await call(prod.bridge, "configure", config);
   assert.equal(prodOk.state, "CONFIGURED");
+});
+
+test("configure refuses a constructor and does not construct Clerk", async () => {
+  let constructed = 0;
+  function Ctor() { constructed += 1; return { version: "6.33.0", async load() {} }; }
+  const { bridge } = harness({ clerkValue: Ctor });
+  const refused = await call(bridge, "configure", config);
+  assert.equal(refused.error_key, "CONFIG");
+  assert.equal(refused.message.includes(config.publishable_key), false);
+  assert.equal(constructed, 0);
+});
+
+test("configure refuses a conflicting instance key, proxy, or domain without re-keying", async () => {
+  const mismatched = harness();
+  mismatched.clerk.publishableKey = pk("other.clerk.accounts.dev");
+  const keyConflict = await call(mismatched.bridge, "configure", config);
+  assert.equal(keyConflict.error_key, "CONFIG");
+  assert.equal(keyConflict.message.includes(config.publishable_key), false);
+  assert.equal(keyConflict.message.includes(mismatched.clerk.publishableKey), false);
+  assert.equal(mismatched.calls.some((item) => item[0] === "load"), false);
+  assert.equal(mismatched.clerk.publishableKey, pk("other.clerk.accounts.dev"));
+
+  const proxied = harness();
+  proxied.clerk.proxyUrl = "https://proxy.example";
+  const proxyConflict = await call(proxied.bridge, "configure", config);
+  assert.equal(proxyConflict.error_key, "CONFIG");
+  assert.equal(proxied.calls.some((item) => item[0] === "load"), false);
+
+  const domained = harness();
+  domained.clerk.domain = "example.com";
+  const domainConflict = await call(domained.bridge, "configure", config);
+  assert.equal(domainConflict.error_key, "CONFIG");
+  assert.equal(domained.calls.some((item) => item[0] === "load"), false);
+});
+
+test("configure does not inject the browser script until the key and Frontend API match", async () => {
+  const injected = [];
+  let clerk = null;
+  const pageWindow = {};
+  const bridge = loadFactory()({
+    getClerk: () => clerk,
+    getWindow: () => pageWindow,
+    getLocation: () => ({ origin: "http://127.0.0.1:8080" }),
+    getDocument: () => dom().document,
+    getSessionStorage: () => ({ getItem() { return null; }, setItem() {}, removeItem() {} }),
+    MutationObserver: class { observe() {} disconnect() {} },
+    now: () => 0,
+    setTimer: (fn, ms) => setTimeout(fn, ms),
+    clearTimer: clearTimeout,
+    atob: (value) => Buffer.from(value, "base64").toString("utf8"),
+    loadClerkScript: async (key) => {
+      injected.push(key);
+      pageWindow.__clerk_publishable_key = key;
+      clerk = {
+        version: "6.33.0",
+        publishableKey: key,
+        proxyUrl: "",
+        domain: "",
+        async load() { injected.push("load"); },
+        addListener() {},
+      };
+    },
+  });
+  const mismatch = await call(bridge, "configure", { ...config, frontend_api: "https://other.clerk.accounts.dev" });
+  assert.equal(mismatch.error_key, "CONFIG");
+  assert.equal(mismatch.message.includes(config.publishable_key), false);
+  assert.equal(injected.length, 0);
+  assert.equal(pageWindow.__clerk_publishable_key, undefined);
+  const missing = await call(bridge, "configure", { ...config, publishable_key: "" });
+  assert.equal(missing.error_key, "CONFIG");
+  assert.equal(injected.length, 0);
+  pageWindow.__clerk_proxy_url = "https://proxy.example";
+  const proxy = await call(bridge, "configure", config);
+  assert.equal(proxy.error_key, "CONFIG");
+  assert.equal(injected.length, 0);
+  assert.equal(pageWindow.__clerk_publishable_key, undefined);
+  delete pageWindow.__clerk_proxy_url;
+  const ok = await call(bridge, "configure", config);
+  assert.equal(ok.state, "CONFIGURED");
+  assert.equal(injected[0], config.publishable_key);
+  assert.equal(injected.includes("load"), true);
+  assert.equal(ok.message.includes(config.publishable_key), false);
 });
 
 test("sign-in email code uses only legacy first-factor methods and does not create an account", async () => {
@@ -492,6 +581,8 @@ test("bridge source does not mix future methods or call FAPI itself", () => {
   assert.equal(source.includes("prepareFirstFactor"), true);
   assert.equal(source.includes("prepareEmailAddressVerification"), true);
   assert.equal(source.includes("clerk-captcha"), true);
-  assert.equal(source.includes("new Ctor(key)"), true);
-  assert.equal(source.includes("new Ctor(key, {"), false);
+  assert.equal(source.includes("new Ctor"), false);
+  assert.equal(source.includes("new Clerk"), false);
+  assert.equal(source.includes("gd-clerk/clerk.browser.js"), true);
+  assert.equal(source.includes("clerk.load()"), true);
 });

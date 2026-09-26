@@ -12,6 +12,8 @@ gd-clerk is a game-agnostic Godot 4.7 web addon. It does not know a consuming pr
 
 Do not commit those values into this repository. Do not add them as Actions secrets here. Native and headless calls return `UNAVAILABLE`. This addon does not store session tokens, codes, emails, or secret keys.
 
+The exported page loads only the bridge until `configure` succeeds. The vendored browser bundle is then inserted from the same origin with that validated public key. A key, Frontend API, or origin that fails the existing checks does not load the bundle.
+
 ## Candidate, not a release
 
 The ZIP from a successful `ci` run is a candidate for isolated test integration only. It is not a released or production pin. Identify it by the full git commit and the ZIP sha256 in `dist/CANDIDATE.json` and `dist/@aviorstudio_gd-clerk.zip.sha256`. The closed manifest has 34 entries. Install by unzipping at the consuming project's root, then enable the `GdClerk` plugin or instance the script.

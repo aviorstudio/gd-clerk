@@ -28,7 +28,7 @@ Unexpected MFA, device trust, protect checks, session tasks, and missing sign-up
 
 Vanilla `clerk.client.signIn` and `clerk.client.signUp` are the documented legacy resources. `SignInFuture` and `SignUpFuture` exist on the pinned types only as `__internal_future`, which framework hooks use. This addon does not call those methods, `emailCode`, `verifications`, or `finalize`.
 
-The browser files under `javascript/clerk/` are the exact `6.33.0` `clerk.browser.js` build and its same-directory chunks. They are not loaded from a floating CDN. `npm ci` plus `node scripts/vendor-clerk.mjs --check` verifies the lockfile integrity.
+The browser files under `javascript/clerk/` are the exact `6.33.0` `clerk.browser.js` build and its same-directory chunks. They are not loaded from a floating CDN, and the export HTML does not parse that bundle before `configure`. After the project-supplied publishable key passes the existing checks, the bridge inserts the same-origin file and calls `load()` on the instance the bundle creates. `npm ci` plus `node scripts/vendor-clerk.mjs --check` verifies the lockfile integrity.
 
 ## Not released
 

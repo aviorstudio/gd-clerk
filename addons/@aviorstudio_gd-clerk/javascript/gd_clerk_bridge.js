@@ -62,6 +62,7 @@
     SDK_VERSION: "Clerk SDK version does not match the pinned build.",
     PROTECTED_BLOCKED: "Protected actions are blocked until sign-out is confirmed."
   };
+  var BROWSER_SCRIPT_SRC = "gd-clerk/clerk.browser.js";
 
   function createBridge(deps) {
     var clerk = null;
@@ -120,6 +121,7 @@
       var text = typeof message === "string" ? message : "";
       text = text.replace(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi, "[redacted]");
       text = text.replace(/eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+/g, "[redacted]");
+      text = text.replace(/\b(?:pk|sk)_(?:test|live)_[A-Za-z0-9+/=_-]+/g, "[redacted]");
       text = text.replace(/\b\d{4,}\b/g, "[redacted]");
       if (text.length > LIMITS.max_message_length) text = text.slice(0, LIMITS.max_message_length);
       return text;
@@ -198,10 +200,12 @@
       return codes;
     }
 
-    function isNetwork(err) {
+    function isNetwork(err, depth) {
       if (!err) return false;
+      if (depth > 4) return false;
       if (err.gdClerkTimeout) return true;
       if (err.name === "ClerkOfflineError" || err.name === "TypeError") return true;
+      if (err.cause && isNetwork(err.cause, (depth || 0) + 1)) return true;
       var codes = codesOf(err);
       return codes.indexOf("clerk_offline") !== -1 || codes.indexOf("network_error") !== -1;
     }
@@ -268,6 +272,152 @@
       }
       if (!origin || !allowed) return MESSAGES.CONFIG;
       return "";
+    }
+
+    function pageWindow() {
+      if (typeof deps.getWindow === "function") {
+        try {
+          return deps.getWindow() || {};
+        } catch (e) {
+          return {};
+        }
+      }
+      return {};
+    }
+
+    function scriptAttr(name) {
+      var doc = null;
+      try {
+        doc = deps.getDocument();
+      } catch (e) {
+        return "";
+      }
+      if (!doc || typeof doc.querySelector !== "function") return "";
+      var node = null;
+      try {
+        node = doc.querySelector("script[" + name + "]");
+      } catch (e) {
+        return "";
+      }
+      if (!node || typeof node.getAttribute !== "function") return "";
+      var value = node.getAttribute(name);
+      return typeof value === "string" ? value : "";
+    }
+
+    function readString(obj, name) {
+      try {
+        var value = obj[name];
+        return typeof value === "string" ? value : "";
+      } catch (e) {
+        return null;
+      }
+    }
+
+    function instanceConflicts(instance, key) {
+      if (!instance || typeof instance === "function" || typeof instance.load !== "function") return true;
+      var got = readString(instance, "publishableKey");
+      if (got === null || got !== key) return true;
+      var proxy = readString(instance, "proxyUrl");
+      var domain = readString(instance, "domain");
+      if (proxy === null || domain === null || proxy || domain) return true;
+      return false;
+    }
+
+    function bootstrapConflict(key) {
+      var win = pageWindow();
+      if (win.__clerk_proxy_url || win.__clerk_domain) return true;
+      if (scriptAttr("data-clerk-proxy-url") || scriptAttr("data-clerk-domain")) return true;
+      var attrKey = scriptAttr("data-clerk-publishable-key");
+      if (attrKey && attrKey !== key) return true;
+      if (typeof win.__clerk_publishable_key === "string" && win.__clerk_publishable_key && win.__clerk_publishable_key !== key) return true;
+      var current = null;
+      try {
+        current = deps.getClerk();
+      } catch (e) {
+        current = null;
+      }
+      if (typeof current === "function") return true;
+      if (current && typeof current === "object" && instanceConflicts(current, key)) return true;
+      return false;
+    }
+
+    function clearProvisionedKey(key) {
+      var win = pageWindow();
+      if (win.__clerk_publishable_key !== key) return;
+      try {
+        delete win.__clerk_publishable_key;
+      } catch (e) {
+        win.__clerk_publishable_key = "";
+      }
+    }
+
+    function loadBrowserScript(key) {
+      if (typeof deps.loadClerkScript === "function") return deps.loadClerkScript(key);
+      return new Promise(function (resolve, reject) {
+        var doc = null;
+        try {
+          doc = deps.getDocument();
+        } catch (e) {
+          doc = null;
+        }
+        var parent = doc && (doc.head || doc.documentElement);
+        if (!doc || typeof doc.createElement !== "function" || !parent || typeof parent.appendChild !== "function") {
+          var missing = new Error("script");
+          missing.gdClerkSdk = true;
+          reject(missing);
+          return;
+        }
+        var win = pageWindow();
+        if (!win.__clerk_publishable_key) win.__clerk_publishable_key = key;
+        var script = doc.createElement("script");
+        script.src = BROWSER_SCRIPT_SRC;
+        script.async = false;
+        script.onload = function () { resolve(); };
+        script.onerror = function () {
+          clearProvisionedKey(key);
+          var failed = new Error("script");
+          failed.gdClerkSdk = true;
+          reject(failed);
+        };
+        parent.appendChild(script);
+      });
+    }
+
+    async function ensureClerk(key) {
+      var current = null;
+      try {
+        current = deps.getClerk();
+      } catch (e) {
+        current = null;
+      }
+      if (typeof current === "function") {
+        var ctor = new Error("constructor");
+        ctor.gdClerkConfig = true;
+        throw ctor;
+      }
+      if (current && typeof current === "object") {
+        if (instanceConflicts(current, key)) {
+          var conflict = new Error("conflict");
+          conflict.gdClerkConfig = true;
+          throw conflict;
+        }
+        return current;
+      }
+      await loadBrowserScript(key);
+      var loaded = null;
+      try {
+        loaded = deps.getClerk();
+      } catch (e) {
+        loaded = null;
+      }
+      if (!loaded || typeof loaded === "function" || typeof loaded.load !== "function" || instanceConflicts(loaded, key)) {
+        clearProvisionedKey(key);
+        var missing = new Error("missing");
+        missing.gdClerkSdk = true;
+        if (loaded && instanceConflicts(loaded, key)) missing.gdClerkConfig = true;
+        throw missing;
+      }
+      return loaded;
     }
 
     function currentSessionState() {
@@ -414,18 +564,19 @@
         finish(result("ERROR", "CONFIG", problem));
         return;
       }
-      var Ctor = deps.getClerk();
-      if (typeof Ctor !== "function") {
-        finish(result("ERROR", "CONFIG", MESSAGES.SDK_MISSING));
+      var key = config.publishable_key || config.publishableKey;
+      if (bootstrapConflict(key)) {
+        finish(result("ERROR", "CONFIG", MESSAGES.CONFIG));
         return;
       }
       try {
-        var key = config.publishable_key || config.publishableKey;
-        clerk = new Ctor(key);
+        clerk = await ensureClerk(key);
         await withTimeout(clerk.load(), LIMITS.network_timeout_ms);
       } catch (e) {
         clerk = null;
-        finish(isNetwork(e) ? result("ERROR", "NETWORK", MESSAGES.NETWORK) : result("ERROR", "CONFIG", MESSAGES.CONFIG));
+        if (e && e.gdClerkSdk && !e.gdClerkConfig) finish(result("ERROR", "CONFIG", MESSAGES.SDK_MISSING));
+        else if (e && e.gdClerkConfig) finish(result("ERROR", "CONFIG", MESSAGES.CONFIG));
+        else finish(isNetwork(e) ? result("ERROR", "NETWORK", MESSAGES.NETWORK) : result("ERROR", "CONFIG", MESSAGES.CONFIG));
         return;
       }
       if (!clerk || clerk.version !== PINNED_CLERK_VERSION) {
@@ -869,6 +1020,7 @@
 
   var bridge = createBridge({
     getClerk: function () { return root.Clerk; },
+    getWindow: function () { return root; },
     getLocation: function () { return root.location; },
     getDocument: function () { return root.document; },
     getSessionStorage: function () { return root.sessionStorage; },

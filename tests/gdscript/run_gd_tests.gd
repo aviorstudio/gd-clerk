@@ -94,7 +94,7 @@ func _sample_config() -> ClerkConfig:
 
 func _html() -> bool:
 	var patched := GdClerkHtmlExport.patch_html("<html><head><title>x</title></head><body></body></html>")
-	return patched.contains("gd-clerk/clerk.browser.js") and patched.contains("gd-clerk/gd_clerk_bridge.js") and not patched.contains("clerk.accounts.dev/npm")
+	return patched.contains("gd-clerk/gd_clerk_bridge.js") and not patched.contains("clerk.browser.js") and not patched.contains("clerk.accounts.dev") and not patched.contains("pk_") and not patched.contains("__clerk_publishable_key")
 
 func _result_drops_secrets() -> bool:
 	var raw := '{"state":"ERROR","error_key":"UNKNOWN","message":"failed","token":"secret-token","email":"person@example.com"}'

@@ -81,6 +81,15 @@ jobs:
           TMPDIR: /tmp/pw-tmp
           GODOT_SILENCE_ROOT_WARNING: "1"
         run: node --test tests/web/origin_export.test.mjs
+      - name: Web export configure regression
+        env:
+          GODOT_BIN: /usr/local/bin/godot
+          XDG_DATA_HOME: /tmp/godot-data
+          XDG_CONFIG_HOME: /tmp/godot-config
+          PLAYWRIGHT_BROWSERS_PATH: /tmp/ms-playwright
+          TMPDIR: /tmp/pw-tmp
+          GODOT_SILENCE_ROOT_WARNING: "1"
+        run: node --test tests/web/configure_export.test.mjs
       - name: Package the closed addon and record provenance
         id: package
         env:
