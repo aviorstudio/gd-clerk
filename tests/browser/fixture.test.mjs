@@ -132,3 +132,70 @@ test("real browser loads the pinned clerk bundle and refuses invisible signup fa
     await new Promise((resolve) => server.close(resolve));
   }
 });
+
+test("real browser sign-out uses a callback and does not navigate without credentials", async () => {
+  const server = await start();
+  const port = server.address().port;
+  const browser = await chromium.launch({ headless: true });
+  try {
+    const page = await browser.newPage();
+    const errors = [];
+    page.on("pageerror", (err) => errors.push(String(err)));
+    await page.route("**/*", (route) => {
+      const url = route.request().url();
+      if (url.startsWith(`http://127.0.0.1:${port}/`)) return route.continue();
+      return route.abort();
+    });
+    await page.goto(`http://127.0.0.1:${port}/tests/browser/fixture.html`, { timeout: 15000 });
+    await page.waitForFunction(() => window.GdClerkBridge, null, { timeout: 15000 });
+    const result = await page.evaluate(async () => {
+      let navigated = false;
+      let callback = "missing";
+      const bridge = window.GdClerkBridge._createForTest({
+        getClerk: () => ({
+          version: "6.33.0",
+          publishableKey: "pk_test_" + btoa("example.clerk.accounts.dev$").replace(/=+$/g, ""),
+          proxyUrl: "",
+          domain: "",
+          isSignedIn: false,
+          session: null,
+          user: null,
+          client: { signIn: {}, signUp: {}, sessions: [], signedInSessions: [], resetSignIn() {}, resetSignUp() {} },
+          async load() {},
+          async setActive() {},
+          async signOut(cb) {
+            callback = typeof cb;
+            if (typeof cb !== "function") navigated = true;
+          },
+          addListener() {},
+        }),
+        getWindow: () => window,
+        getLocation: () => window.location,
+        getDocument: () => document,
+        getSessionStorage: () => window.sessionStorage,
+        MutationObserver: window.MutationObserver,
+        now: () => Date.now(),
+        setTimer: (fn, ms) => window.setTimeout(fn, ms),
+        clearTimer: (id) => window.clearTimeout(id),
+        atob: (value) => window.atob(value),
+      });
+      const host = "example.clerk.accounts.dev";
+      const key = "pk_test_" + btoa(host + "$").replace(/=+$/g, "");
+      await new Promise((resolve) => bridge.configure(JSON.stringify({
+        publishable_key: key,
+        frontend_api: "https://" + host,
+        allowed_origins: [window.location.origin],
+      }), resolve));
+      const raw = await new Promise((resolve) => bridge.signOut(resolve));
+      return { body: JSON.parse(raw), navigated, callback, href: window.location.href };
+    });
+    assert.equal(result.callback, "function");
+    assert.equal(result.navigated, false);
+    assert.equal(result.href.includes("accounts"), false);
+    assert.equal(result.body.state, "SIGNED_OUT");
+    assert.equal(errors.length, 0);
+  } finally {
+    await browser.close();
+    await new Promise((resolve) => server.close(resolve));
+  }
+});

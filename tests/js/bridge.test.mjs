@@ -107,7 +107,12 @@ function harness(options = {}) {
     isTransferable: false,
     createdSessionId: null,
     firstFactorVerification: { status: "unverified" },
-    async create(params) { calls.push(["signIn.create", params]); return this; },
+    async create(params) {
+      calls.push(["signIn.create", params]);
+      this.supportedFirstFactors = [{ strategy: "email_code", emailAddressId: "idn_1" }];
+      if (!this.status) this.status = "needs_first_factor";
+      return this;
+    },
     async prepareFirstFactor(params) { calls.push(["prepareFirstFactor", params]); this.status = "needs_first_factor"; return this; },
     async attemptFirstFactor(params) {
       calls.push(["attemptFirstFactor", params]);
@@ -361,21 +366,41 @@ test("unknown identifier does not transfer or auto-create", async () => {
 
 test("mfa, device trust, protect, and missing email factor fail closed", async () => {
   for (const status of ["needs_second_factor", "needs_client_trust"]) {
-    const h = harness({ mutate({ signIn }) { signIn.status = status; signIn.create = async () => signIn; } });
+    const h = harness({ mutate({ signIn }) {
+      signIn.create = async () => {
+        signIn.status = status;
+        signIn.supportedFirstFactors = [{ strategy: "email_code", emailAddressId: "idn_1" }];
+        return signIn;
+      };
+    } });
     await call(h.bridge, "configure", config);
     const result = await call(h.bridge, "beginEmailCode", "person@example.com", "SIGN_IN");
     assert.equal(result.state, "NEEDS_MORE_STEPS");
     assert.equal(result.error_key, "UNSUPPORTED_CHALLENGE");
+    assert.equal(result.phase, "status_challenge");
     assert.equal(h.calls.some((item) => item[0] === "setActive"), false);
   }
-  const protect = harness({ mutate({ signIn }) { signIn.protectCheck = { id: "protect" }; signIn.create = async () => signIn; } });
+  const protect = harness({ mutate({ signIn }) {
+    signIn.create = async () => {
+      signIn.protectCheck = { id: "protect" };
+      signIn.supportedFirstFactors = [{ strategy: "email_code", emailAddressId: "idn_1" }];
+      return signIn;
+    };
+  } });
   await call(protect.bridge, "configure", config);
   const blocked = await call(protect.bridge, "beginEmailCode", "person@example.com", "SIGN_IN");
   assert.equal(blocked.error_key, "UNSUPPORTED_CHALLENGE");
-  const missing = harness({ mutate({ signIn }) { signIn.supportedFirstFactors = [{ strategy: "password" }]; signIn.create = async () => signIn; } });
+  assert.equal(blocked.phase, "protect");
+  const missing = harness({ mutate({ signIn }) {
+    signIn.create = async () => {
+      signIn.supportedFirstFactors = [{ strategy: "password" }];
+      return signIn;
+    };
+  } });
   await call(missing.bridge, "configure", config);
   const noFactor = await call(missing.bridge, "beginEmailCode", "person@example.com", "SIGN_IN");
   assert.equal(noFactor.error_key, "UNSUPPORTED_CHALLENGE");
+  assert.equal(noFactor.phase, "missing_factor");
 });
 
 test("session tasks after setActive are not authenticated and cannot mint tokens", async () => {
@@ -710,7 +735,87 @@ test("sign-out is confirmed only after remote success and an absent browser sess
   };
   const signedOut = await call(reloaded.bridge, "signOut");
   assert.equal(signedOut.state, "SIGNED_OUT");
+  assert.equal(signedOut.phase, "sign_out_resolved_absent");
   assert.equal(h.store.get("gd_clerk_sign_out_incomplete"), undefined);
+});
+
+test("sign-out passes a callback and does not navigate", async () => {
+  let navigated = false;
+  let callback = "missing";
+  const h = harness({ mutate({ clerk }) {
+    clerk.signOut = async (cb) => {
+      callback = typeof cb;
+      if (typeof cb !== "function") navigated = true;
+      clerk.session = null;
+      clerk.user = null;
+      clerk.isSignedIn = false;
+      clerk.client.sessions = [];
+      clerk.client.signedInSessions = [];
+    };
+  } });
+  await call(h.bridge, "configure", config);
+  const signedOut = await call(h.bridge, "signOut");
+  assert.equal(callback, "function");
+  assert.equal(navigated, false);
+  assert.equal(signedOut.state, "SIGNED_OUT");
+  assert.equal(JSON.stringify(signedOut).includes("@"), false);
+});
+
+test("a failed sign-out blocks email flows and token mint but still allows retry", async () => {
+  let attempts = 0;
+  const h = harness({ mutate({ clerk }) {
+    clerk.session = { status: "active", async getToken() { return jwt(Math.floor(Date.now() / 1000) + 50); } };
+    clerk.user = { id: "user_1" };
+    clerk.isSignedIn = true;
+    clerk.signOut = async () => { attempts += 1; throw new TypeError("network down"); };
+  } });
+  await call(h.bridge, "configure", config);
+  const failed = await call(h.bridge, "signOut");
+  assert.equal(failed.state, "SIGN_OUT_FAILED");
+  assert.equal(failed.phase, "sign_out_thrown");
+  for (const mode of ["SIGN_IN", "SIGN_UP"]) {
+    const begin = await call(h.bridge, "beginEmailCode", "person@example.com", mode);
+    assert.equal(begin.state, "SIGN_OUT_FAILED");
+    assert.equal(begin.phase, "sign_out_latched");
+  }
+  const complete = await call(h.bridge, "completeEmailCode", "123456");
+  const resend = await call(h.bridge, "resendEmailCode");
+  const token = await call(h.bridge, "getSessionToken", 10);
+  assert.equal(complete.phase, "sign_out_latched");
+  assert.equal(resend.phase, "sign_out_latched");
+  assert.equal(token.token, undefined);
+  const retried = await call(h.bridge, "signOut");
+  assert.equal(attempts, 2);
+  assert.equal(retried.state, "SIGN_OUT_FAILED");
+  assert.equal(h.calls.some((item) => item[0] === "signIn.create"), false);
+  assert.equal(h.calls.some((item) => item[0] === "signUp.create"), false);
+});
+
+test("null or stale sign-in create is network, not an unsupported challenge", async () => {
+  const missing = harness({ mutate({ signIn }) { signIn.create = async () => null; } });
+  await call(missing.bridge, "configure", config);
+  const nulled = await call(missing.bridge, "beginEmailCode", "person@example.com", "SIGN_IN");
+  assert.equal(nulled.state, "ERROR");
+  assert.equal(nulled.error_key, "NETWORK");
+  assert.equal(nulled.phase, "create_null");
+  const stale = harness({ mutate({ signIn }) {
+    signIn.status = "needs_second_factor";
+    signIn.protectCheck = { id: "protect" };
+    signIn.create = async () => signIn;
+  } });
+  await call(stale.bridge, "configure", config);
+  const unchanged = await call(stale.bridge, "beginEmailCode", "person@example.com", "SIGN_IN");
+  assert.equal(unchanged.error_key, "NETWORK");
+  assert.equal(unchanged.phase, "create_stale");
+  assert.notEqual(unchanged.error_key, "UNSUPPORTED_CHALLENGE");
+  const thrown = harness({ mutate({ signIn }) {
+    signIn.create = async () => { throw new TypeError("Failed to fetch"); };
+  } });
+  await call(thrown.bridge, "configure", config);
+  const networked = await call(thrown.bridge, "beginEmailCode", "person@example.com", "SIGN_IN");
+  assert.equal(networked.error_key, "NETWORK");
+  assert.equal(networked.phase, "create_thrown");
+  assert.equal(JSON.stringify(networked).includes("person@"), false);
 });
 
 test("bridge source does not mix future methods or call FAPI itself", () => {

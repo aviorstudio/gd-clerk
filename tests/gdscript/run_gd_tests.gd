@@ -97,10 +97,11 @@ func _html() -> bool:
 	return patched.contains("gd-clerk/gd_clerk_bridge.js") and not patched.contains("clerk.browser.js") and not patched.contains("clerk.accounts.dev") and not patched.contains("pk_") and not patched.contains("__clerk_publishable_key")
 
 func _result_drops_secrets() -> bool:
-	var raw := '{"state":"ERROR","error_key":"UNKNOWN","message":"failed","token":"secret-token","email":"person@example.com"}'
+	var raw := '{"state":"ERROR","error_key":"UNKNOWN","message":"failed","token":"secret-token","email":"person@example.com","phase":"person@example.com"}'
 	var result := ClerkResult.from_json(raw, false)
 	var state := SessionState.from_json('{"signed_in":true,"status":"signed_in","protected_actions_blocked":false,"token":"secret-token","email":"a@b.c"}')
-	return result.token == "" and not result.message.contains("person@") and state.to_dictionary().has("token") == false and state.to_dictionary().has("email") == false
+	var allowed := ClerkResult.from_json('{"state":"ERROR","error_key":"NETWORK","phase":"create_stale"}', false)
+	return result.token == "" and result.phase == "" and allowed.phase == "create_stale" and not result.message.contains("person@") and state.to_dictionary().has("token") == false and state.to_dictionary().has("email") == false
 
 func _clerk() -> Node:
 	return load("res://addons/@aviorstudio_gd-clerk/gd_clerk.gd").new()

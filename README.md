@@ -18,7 +18,9 @@ Web export only. Native and headless calls return `UNAVAILABLE` once and do not 
 
 `get_session_token(min_validity_seconds, done)` returns an ephemeral token only when the unverified JWT `exp` claim is at least `min_validity_seconds` ahead. That claim is a scheduling hint. A Go server must verify the token and authorize the request. Concurrent refreshes share one `skipCache` fetch.
 
-`sign_out(done)` returns `SIGNED_OUT` only after `clerk.signOut()` resolves and the browser session is absent. Otherwise it returns `SIGN_OUT_FAILED` or `UNAVAILABLE`, keeps protected token requests blocked, and can be retried. A failed sign-out sets a non-secret `sessionStorage` latch that survives reload.
+`sign_out(done)` calls `clerk.signOut` with a callback so the SDK does not redirect the page. It returns `SIGNED_OUT` only after that call resolves and the browser session is absent. Otherwise it returns `SIGN_OUT_FAILED` or `UNAVAILABLE`. A failed sign-out sets a non-secret `sessionStorage` latch that survives reload and blocks email begin, complete, resend, and token mint until a later sign-out returns `SIGNED_OUT`. Sign-out itself can be retried. Resolving `signOut` and seeing no local session is not proof the remote session was deleted, so `SIGNED_OUT` is not release evidence until that proof is decided.
+
+A sign-in `create` that returns null, throws a network error, or leaves the previous sign-in payload unchanged is `ERROR` / `NETWORK`. A payload that reports MFA, device trust, protect, or a transferable sign-in stays `NEEDS_MORE_STEPS` / `UNSUPPORTED_CHALLENGE`. Optional `phase` is an allowlisted enum and never contains a key, token, code, email, or session id.
 
 `session_changed` emits `signed_in`, `status`, and `protected_actions_blocked` only. It never includes a token, code, or email.
 

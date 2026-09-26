@@ -6,6 +6,21 @@ var error_key: String = ""
 var message: String = ""
 var token: String = ""
 var retryable: bool = false
+var phase: String = ""
+
+const _PHASES: Array[String] = [
+	"sign_out_thrown",
+	"sign_out_resolved_present",
+	"sign_out_resolved_absent",
+	"sign_out_latched",
+	"create_null",
+	"create_stale",
+	"create_thrown",
+	"status_challenge",
+	"missing_factor",
+	"protect",
+	"transferable",
+]
 
 static func unavailable() -> ClerkResult:
 	var result := ClerkResult.new()
@@ -33,6 +48,8 @@ static func from_json(raw: String, allow_token: bool = false) -> ClerkResult:
 	result.error_key = str(data.get("error_key", ""))
 	result.message = str(data.get("message", ""))
 	result.retryable = bool(data.get("retryable", false))
+	var raw_phase := str(data.get("phase", ""))
+	result.phase = raw_phase if _PHASES.has(raw_phase) else ""
 	if allow_token and data.has("token"):
 		result.token = str(data.get("token", ""))
 	if result.message.length() > 180:

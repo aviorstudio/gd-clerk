@@ -117,6 +117,39 @@
       } catch (e) {}
     }
 
+    var PHASES = {
+      sign_out_thrown: 1,
+      sign_out_resolved_present: 1,
+      sign_out_resolved_absent: 1,
+      sign_out_latched: 1,
+      create_null: 1,
+      create_stale: 1,
+      create_thrown: 1,
+      status_challenge: 1,
+      missing_factor: 1,
+      protect: 1,
+      transferable: 1
+    };
+
+    function allowPhase(value) {
+      return PHASES[value] ? value : "";
+    }
+
+    function rejectIfSignOutLatched(finish) {
+      if (!(protectedBlocked || readLatch())) return false;
+      finish(result("SIGN_OUT_FAILED", "UNKNOWN", MESSAGES.PROTECTED_BLOCKED, { retryable: true, phase: "sign_out_latched" }));
+      return true;
+    }
+
+    function suppressNavigation() {}
+
+    function challengePhase(resource) {
+      if (resource && resource.isTransferable) return "transferable";
+      if (resource && resource.protectCheck) return "protect";
+      if (resource && unsupportedSignInStatus(resource.status)) return "status_challenge";
+      return "missing_factor";
+    }
+
     function sanitizeMessage(message) {
       var text = typeof message === "string" ? message : "";
       text = text.replace(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi, "[redacted]");
@@ -136,6 +169,8 @@
       if (extra) {
         if (extra.token && state === "TOKEN") out.token = extra.token;
         if (extra.retryable === true) out.retryable = true;
+        var phase = allowPhase(extra.phase);
+        if (phase) out.phase = phase;
       }
       return out;
     }
@@ -152,6 +187,8 @@
           message: sanitizeMessage(value.message || "")
         };
         if (value.retryable === true) safe.retryable = true;
+        var phase = allowPhase(value.phase);
+        if (phase) safe.phase = phase;
         if (value.state === "TOKEN" && typeof value.token === "string") {
           safe.state = "AUTHENTICATED";
           safe.token = value.token;
@@ -587,7 +624,7 @@
       if (!readLatch()) return;
       protectedBlocked = true;
       try {
-        await withTimeout(clerk.signOut(), LIMITS.network_timeout_ms);
+        await withTimeout(clerk.signOut(suppressNavigation), LIMITS.network_timeout_ms);
       } catch (e) {
         return;
       }
@@ -690,18 +727,37 @@
         return;
       }
       var created;
+      var staleProbe = [];
+      var previousFactors = signIn.supportedFirstFactors;
+      var probed = false;
+      try {
+        signIn.supportedFirstFactors = staleProbe;
+        probed = signIn.supportedFirstFactors === staleProbe;
+      } catch (e) {
+        probed = false;
+      }
       try {
         created = await withTimeout(signIn.create({ identifier: email }), LIMITS.network_timeout_ms);
       } catch (e) {
+        if (probed && signIn.supportedFirstFactors === staleProbe) signIn.supportedFirstFactors = previousFactors;
         if (gen !== cancelGen) return;
-        finish(mapError(e));
+        var mapped = mapError(e);
+        if (mapped.error_key === "NETWORK") mapped.phase = "create_thrown";
+        finish(mapped);
         return;
       }
       if (gen !== cancelGen) return;
-      var resource = created || signIn;
+      var payloadMissing = created == null || (probed && created === signIn && signIn.supportedFirstFactors === staleProbe);
+      if (payloadMissing) {
+        if (probed && signIn.supportedFirstFactors === staleProbe) signIn.supportedFirstFactors = previousFactors;
+        finish(result("ERROR", "NETWORK", MESSAGES.NETWORK, { phase: created == null ? "create_null" : "create_stale" }));
+        return;
+      }
+      if (probed && signIn.supportedFirstFactors === staleProbe) signIn.supportedFirstFactors = previousFactors;
+      var resource = created && created !== signIn ? created : signIn;
       if (resource.isTransferable || resource.protectCheck || unsupportedSignInStatus(resource.status)) {
         safeReset("SIGN_IN");
-        finish(result("NEEDS_MORE_STEPS", "UNSUPPORTED_CHALLENGE", MESSAGES.NEEDS_MORE_STEPS));
+        finish(result("NEEDS_MORE_STEPS", "UNSUPPORTED_CHALLENGE", MESSAGES.NEEDS_MORE_STEPS, { phase: challengePhase(resource) }));
         return;
       }
       var factors = resource.supportedFirstFactors || [];
@@ -714,7 +770,7 @@
       }
       if (!factor) {
         safeReset("SIGN_IN");
-        finish(result("NEEDS_MORE_STEPS", "UNSUPPORTED_CHALLENGE", MESSAGES.NEEDS_MORE_STEPS));
+        finish(result("NEEDS_MORE_STEPS", "UNSUPPORTED_CHALLENGE", MESSAGES.NEEDS_MORE_STEPS, { phase: "missing_factor" }));
         return;
       }
       try {
@@ -727,7 +783,7 @@
       if (gen !== cancelGen) return;
       if (unsupportedSignInStatus(signIn.status) || signIn.protectCheck) {
         safeReset("SIGN_IN");
-        finish(result("NEEDS_MORE_STEPS", "UNSUPPORTED_CHALLENGE", MESSAGES.NEEDS_MORE_STEPS));
+        finish(result("NEEDS_MORE_STEPS", "UNSUPPORTED_CHALLENGE", MESSAGES.NEEDS_MORE_STEPS, { phase: challengePhase(signIn) }));
         return;
       }
       flow = { mode: "SIGN_IN", emailAddressId: factor.emailAddressId, sentAt: now() };
@@ -809,6 +865,7 @@
     async function beginEmailCode(email, mode, cb) {
       var finish = once(cb);
       if (!requireReady(finish)) return;
+      if (rejectIfSignOutLatched(finish)) return;
       if (inflightFinish) {
         finish(result("ERROR", "UNKNOWN", MESSAGES.FLOW_BUSY));
         return;
@@ -849,6 +906,7 @@
     async function completeEmailCode(code, cb) {
       var finish = once(cb);
       if (!requireReady(finish)) return;
+      if (rejectIfSignOutLatched(finish)) return;
       if (inflightFinish) {
         finish(result("ERROR", "UNKNOWN", MESSAGES.FLOW_BUSY));
         return;
@@ -905,6 +963,7 @@
     async function resendEmailCode(cb) {
       var finish = once(cb);
       if (!requireReady(finish)) return;
+      if (rejectIfSignOutLatched(finish)) return;
       if (!flow) {
         finish(result("ERROR", "CANCELLED", MESSAGES.NO_FLOW));
         return;
@@ -984,7 +1043,7 @@
         return;
       }
       if (protectedBlocked || readLatch()) {
-        finish(result("SIGN_OUT_FAILED", "UNKNOWN", MESSAGES.PROTECTED_BLOCKED, { retryable: true }));
+        finish(result("SIGN_OUT_FAILED", "UNKNOWN", MESSAGES.PROTECTED_BLOCKED, { retryable: true, phase: "sign_out_latched" }));
         return;
       }
       var session = clerk.session;
@@ -1028,17 +1087,17 @@
       setLatch();
       emitSession();
       try {
-        await withTimeout(clerk.signOut(), LIMITS.network_timeout_ms);
+        await withTimeout(clerk.signOut(suppressNavigation), LIMITS.network_timeout_ms);
       } catch (e) {
-        return result("SIGN_OUT_FAILED", isNetwork(e) ? "NETWORK" : "UNKNOWN", MESSAGES.SIGN_OUT_FAILED, { retryable: true });
+        return result("SIGN_OUT_FAILED", isNetwork(e) ? "NETWORK" : "UNKNOWN", MESSAGES.SIGN_OUT_FAILED, { retryable: true, phase: "sign_out_thrown" });
       }
       if (!sessionAbsent()) {
-        return result("SIGN_OUT_FAILED", "UNKNOWN", MESSAGES.SIGN_OUT_FAILED, { retryable: true });
+        return result("SIGN_OUT_FAILED", "UNKNOWN", MESSAGES.SIGN_OUT_FAILED, { retryable: true, phase: "sign_out_resolved_present" });
       }
       clearLatch();
       flow = null;
       emitSession();
-      return result("SIGNED_OUT", "", MESSAGES.SIGNED_OUT);
+      return result("SIGNED_OUT", "", MESSAGES.SIGNED_OUT, { phase: "sign_out_resolved_absent" });
     }
 
     function signOut(cb) {
