@@ -53,6 +53,15 @@ if (/new\s+Ctor\s*\([^)]*,/.test(bridge)) {
   console.error("Clerk constructor must not receive option overrides");
   process.exit(1);
 }
+const clerkGd = readFileSync(join(root, "addons/@aviorstudio_gd-clerk/gd_clerk.gd"), "utf8");
+if (clerkGd.includes('.get("origin")') || clerkGd.includes(".get('origin')") || clerkGd.includes("JavaScriptBridge.eval")) {
+  console.error("page origin must be a JavaScriptObject property read, not a method call or eval");
+  process.exit(1);
+}
+if (!clerkGd.includes("location.origin") && !clerkGd.includes("(location as Object).origin")) {
+  console.error("page origin must read the location origin property");
+  process.exit(1);
+}
 const coupling = couplingHits(root);
 if (coupling.length) {
   console.error(coupling.join("\n"));

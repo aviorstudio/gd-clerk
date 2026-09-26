@@ -8,6 +8,7 @@ func _run() -> bool:
 	var failed := false
 	failed = _expect(_native_unavailable(), "native methods return UNAVAILABLE once") or failed
 	failed = _expect(_policy(), "config policy rejects unsafe and unlisted origins") or failed
+	failed = _expect(_origin_closed(), "empty and unsupported origins fail closed without echoing") or failed
 	failed = _expect(_html(), "web export injects pinned local scripts") or failed
 	failed = _expect(_result_drops_secrets(), "results drop unexpected token and email fields") or failed
 	failed = _expect(_relay_lifecycle(), "relays are released, cancelled once, and ignored after free") or failed
@@ -65,6 +66,31 @@ func _policy() -> bool:
 	if ClerkPolicy.validate_config(config, "http://127.0.0.1:8080") == "":
 		return false
 	return ClerkPolicy.validate_email("person@example.com") and not ClerkPolicy.validate_email("not an email") and ClerkPolicy.validate_code("123456") and not ClerkPolicy.validate_code("12ab")
+
+func _origin_closed() -> bool:
+	var clerk = load("res://addons/@aviorstudio_gd-clerk/gd_clerk.gd").new()
+	var native_origin: String = clerk._page_origin()
+	var empty_ok: bool = not clerk._is_supported_origin("")
+	var file_ok: bool = not clerk._is_supported_origin("file://secret.example")
+	var null_ok: bool = not clerk._is_supported_origin("null")
+	var listed_ok: bool = clerk._is_supported_origin("http://127.0.0.1:9")
+	clerk.free()
+	var config := _sample_config()
+	var empty_message := ClerkPolicy.validate_config(config, "")
+	var file_message := ClerkPolicy.validate_config(config, "file://secret.example")
+	var opaque_message := ClerkPolicy.validate_config(config, "null")
+	return native_origin == "" and empty_ok and file_ok and null_ok and listed_ok and empty_message == "Configuration is invalid." and file_message == "Configuration is invalid." and opaque_message == "Configuration is invalid." and not file_message.contains("secret.example") and not empty_message.contains("http")
+
+func _sample_config() -> ClerkConfig:
+	var host := "example.clerk.accounts.dev"
+	var config := ClerkConfig.new()
+	var encoded := Marshalls.utf8_to_base64(host + "$")
+	while encoded.ends_with("="):
+		encoded = encoded.substr(0, encoded.length() - 1)
+	config.publishable_key = "pk_test_" + encoded
+	config.frontend_api = "https://" + host
+	config.allowed_origins = PackedStringArray(["http://127.0.0.1:9"])
+	return config
 
 func _html() -> bool:
 	var patched := GdClerkHtmlExport.patch_html("<html><head><title>x</title></head><body></body></html>")

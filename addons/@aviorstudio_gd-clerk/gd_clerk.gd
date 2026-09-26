@@ -145,13 +145,36 @@ func _bridge() -> Object:
 	return js.call("get_interface", "GdClerkBridge")
 
 func _page_origin() -> String:
+	if not _is_web():
+		return ""
 	var js := _js()
 	if js == null:
 		return ""
-	var location = js.call("get_interface", "location")
-	if location == null:
+	var location: Variant = js.call("get_interface", "location")
+	if location == null or not (location is Object):
 		return ""
-	return str(location.get("origin"))
+	# Read the property. A method call named get is forwarded to JavaScript and does not exist on Location.
+	var origin: Variant = (location as Object).origin
+	if typeof(origin) != TYPE_STRING or not _is_supported_origin(origin):
+		return ""
+	return origin
+
+func _is_supported_origin(origin: String) -> bool:
+	if origin.is_empty() or origin.length() > 200:
+		return false
+	if origin.contains(" ") or origin.contains("\t") or origin.contains("\n") or origin.contains("\r"):
+		return false
+	var scheme := ""
+	if origin.begins_with("https://"):
+		scheme = "https://"
+	elif origin.begins_with("http://"):
+		scheme = "http://"
+	else:
+		return false
+	var body := origin.substr(scheme.length())
+	if body.is_empty() or body.contains("/") or body.contains("?") or body.contains("#") or body.contains("@") or body.contains("\\"):
+		return false
+	return true
 
 func _track(done: Callable) -> int:
 	var id := _next_id

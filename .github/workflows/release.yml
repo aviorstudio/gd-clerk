@@ -68,6 +68,19 @@ jobs:
           mkdir -p /tmp/pw-tmp
           TMPDIR=/tmp/pw-tmp npx playwright install chromium
           TMPDIR=/tmp/pw-tmp npm run test:browser
+      - name: Install Godot web export templates
+        env:
+          XDG_DATA_HOME: /tmp/godot-data
+        run: bash scripts/install-godot-templates.sh
+      - name: Web export origin regression
+        env:
+          GODOT_BIN: /usr/local/bin/godot
+          XDG_DATA_HOME: /tmp/godot-data
+          XDG_CONFIG_HOME: /tmp/godot-config
+          PLAYWRIGHT_BROWSERS_PATH: /tmp/ms-playwright
+          TMPDIR: /tmp/pw-tmp
+          GODOT_SILENCE_ROOT_WARNING: "1"
+        run: node --test tests/web/origin_export.test.mjs
       - name: Package the closed addon and record provenance
         id: package
         env:

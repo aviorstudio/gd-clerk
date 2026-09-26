@@ -10,7 +10,7 @@ Web export only. Native and headless calls return `UNAVAILABLE` once and do not 
 
 ## API
 
-`configure(ClerkConfig, done)` requires a `pk_test_` or `pk_live_` publishable key, the exact `https://` Frontend API origin encoded by that key, and an explicit allowed-origin list. The current page origin must be in that list. The consuming project supplies those values. This repository does not embed a game origin, publishable key, inbox, or sender.
+`configure(ClerkConfig, done)` requires a `pk_test_` or `pk_live_` publishable key, the exact `https://` Frontend API origin encoded by that key, and an explicit allowed-origin list. The current page origin is the browser `location.origin` property. An empty or unsupported origin is rejected and is not included in the error. The consuming project supplies the key, Frontend API, and allowed origins. This repository does not embed a game origin, publishable key, inbox, or sender.
 
 `begin_email_code(email, mode, done)` takes `0` for `SIGN_IN` and `1` for `SIGN_UP`. Sign-in never creates an account. Sign-up uses the legacy `client.signUp` resource only after the Smart CAPTCHA slot is mounted. Future hook methods are not used.
 
