@@ -13,7 +13,6 @@ const forbidden = [
   "signUpIfMissing",
   "localStorage",
   "fetch(",
-  "captchaBypass",
   "finalize(",
   "strategy: \"password\"",
   "strategy: 'password'",
@@ -21,6 +20,14 @@ const forbidden = [
 const hits = forbidden.filter((item) => bridge.includes(item));
 if (hits.length) {
   console.error("bridge contains forbidden API usage:", hits.join(", "));
+  process.exit(1);
+}
+if (/captchaBypass\s*=(?!=)/.test(bridge) || bridge.includes("captcha_bypass")) {
+  console.error("bridge must not set captcha bypass");
+  process.exit(1);
+}
+if (!bridge.includes("captchaBypass === true")) {
+  console.error("bridge must refuse a captcha bypass flag");
   process.exit(1);
 }
 if (!bridge.includes('getElementById(CAPTCHA_ELEMENT_ID)') && !bridge.includes('getElementById("clerk-captcha")') && !bridge.includes("CAPTCHA_ELEMENT_ID")) {

@@ -50,7 +50,7 @@
     SIGNED_OUT: "Signed out.",
     SIGN_OUT_FAILED: "Sign-out could not be confirmed. Protected actions are blocked.",
     CONFIGURED: "Configured.",
-    SIGN_UP_POLICY: "Sign-up requires Smart bot protection, which is not confirmed.",
+    SIGN_UP_POLICY: "Sign-up bot protection is not in a supported state.",
     CAPTCHA_SLOT: "The Smart CAPTCHA slot could not be mounted. Sign-up was not started.",
     INVISIBLE_FALLBACK: "Invisible CAPTCHA fallback is not supported. Sign-up was stopped.",
     SESSION_PRESENT: "A session is already present.",
@@ -203,6 +203,7 @@
     function isNetwork(err, depth) {
       if (!err) return false;
       if (depth > 4) return false;
+      if (err && typeof err.message === "string" && err.message.indexOf("already been rendered") !== -1) return false;
       if (err.gdClerkTimeout) return true;
       if (err.name === "ClerkOfflineError" || err.name === "TypeError") return true;
       if (err.cause && isNetwork(err.cause, (depth || 0) + 1)) return true;
@@ -482,31 +483,80 @@
     function readCaptchaPolicy() {
       var env = clerk && clerk.__internal_environment;
       if (!env || !env.userSettings || !env.userSettings.signUp || !env.displayConfig) return "unknown";
-      if (env.userSettings.signUp.captcha_enabled !== true) return "disabled";
-      if (env.displayConfig.captchaWidgetType === "invisible") return "invisible";
+      if (clerk.client && clerk.client.captchaBypass === true) return "bypass";
+      var enabled = env.userSettings.signUp.captcha_enabled;
+      if (enabled === false) return "off";
+      if (enabled !== true) return "unknown";
       if (env.displayConfig.captchaWidgetType !== "smart") return "widget";
-      return "ok";
+      var pub = env.displayConfig.captchaPublicKey;
+      var invis = env.displayConfig.captchaPublicKeyInvisible;
+      if (typeof pub !== "string" || pub.trim().length === 0 || typeof invis !== "string" || invis.trim().length === 0) return "keys";
+      return "smart";
+    }
+
+    function attributePresent(el, name) {
+      if (!el) return false;
+      if (typeof el.hasAttribute === "function" && el.hasAttribute(name)) return true;
+      if (typeof el.getAttribute === "function") {
+        var value = el.getAttribute(name);
+        if (value !== null && value !== undefined) return true;
+      }
+      return false;
+    }
+
+    function styleHidden(style) {
+      if (!style) return false;
+      var display = style.display;
+      var visibility = style.visibility;
+      if (typeof style.getPropertyValue === "function") {
+        if (!display) display = style.getPropertyValue("display");
+        if (!visibility) visibility = style.getPropertyValue("visibility");
+      }
+      return display === "none" || visibility === "hidden" || visibility === "collapse";
+    }
+
+    function computedHidden(el) {
+      var win = null;
+      try {
+        win = deps.getWindow();
+      } catch (e) {
+        win = null;
+      }
+      if (!win || typeof win.getComputedStyle !== "function") return false;
+      try {
+        return styleHidden(win.getComputedStyle(el));
+      } catch (e) {
+        return false;
+      }
+    }
+
+    function slotNotRenderable(el) {
+      if (!el || el.id !== CAPTCHA_ELEMENT_ID || el.isConnected === false) return true;
+      if (el.hidden === true || attributePresent(el, "hidden") || attributePresent(el, "data-clerk-captcha")) return true;
+      if (styleHidden(el.style) || computedHidden(el)) return true;
+      return false;
     }
 
     function mountCaptchaSlot() {
       var doc = deps.getDocument();
       if (!doc || !doc.body || typeof doc.createElement !== "function" || typeof doc.getElementById !== "function") return false;
       var el = doc.getElementById(CAPTCHA_ELEMENT_ID);
-      if (!el) {
-        el = doc.createElement("div");
-        el.id = CAPTCHA_ELEMENT_ID;
+      if (el) return !slotNotRenderable(el) && doc.getElementById(CAPTCHA_ELEMENT_ID) === el;
+      el = doc.createElement("div");
+      el.id = CAPTCHA_ELEMENT_ID;
+      el.hidden = false;
+      if (typeof el.setAttribute === "function") {
         el.setAttribute("data-cl-theme", "auto");
         el.setAttribute("data-cl-size", "flexible");
-        el.style.position = "fixed";
-        el.style.zIndex = "2147483646";
-        el.style.left = "50%";
-        el.style.bottom = "16px";
-        el.style.transform = "translateX(-50%)";
-        doc.body.appendChild(el);
       }
-      if (!el || el.id !== CAPTCHA_ELEMENT_ID) return false;
-      if (el.isConnected === false) return false;
-      return doc.getElementById(CAPTCHA_ELEMENT_ID) === el;
+      if (!el.style) el.style = {};
+      el.style.position = "fixed";
+      el.style.zIndex = "2147483646";
+      el.style.left = "50%";
+      el.style.bottom = "16px";
+      el.style.transform = "translateX(-50%)";
+      doc.body.appendChild(el);
+      return !slotNotRenderable(el) && doc.getElementById(CAPTCHA_ELEMENT_ID) === el;
     }
 
     function watchInvisible(doc) {
@@ -698,16 +748,17 @@
     }
 
     async function beginSignUp(email, finish, gen) {
-      if (readCaptchaPolicy() !== "ok") {
+      var policy = readCaptchaPolicy();
+      if (policy !== "off" && policy !== "smart") {
         finish(result("ERROR", "UNSUPPORTED_CHALLENGE", MESSAGES.SIGN_UP_POLICY));
         return;
       }
-      if (!mountCaptchaSlot()) {
+      var doc = deps.getDocument();
+      if (policy === "smart" && !mountCaptchaSlot()) {
         finish(result("ERROR", "CONFIG", MESSAGES.CAPTCHA_SLOT));
         return;
       }
-      var doc = deps.getDocument();
-      if (!doc.getElementById(CAPTCHA_ELEMENT_ID)) {
+      if (policy === "smart" && (!doc || !doc.getElementById(CAPTCHA_ELEMENT_ID))) {
         finish(result("ERROR", "CONFIG", MESSAGES.CAPTCHA_SLOT));
         return;
       }
@@ -868,7 +919,12 @@
         if (flow.mode === "SIGN_IN") {
           await withTimeout(clerk.client.signIn.prepareFirstFactor({ strategy: "email_code", emailAddressId: flow.emailAddressId }), LIMITS.network_timeout_ms);
         } else {
-          if (!mountCaptchaSlot()) {
+          var resendPolicy = readCaptchaPolicy();
+          if (resendPolicy !== "off" && resendPolicy !== "smart") {
+            finish(result("ERROR", "UNSUPPORTED_CHALLENGE", MESSAGES.SIGN_UP_POLICY));
+            return;
+          }
+          if (resendPolicy === "smart" && !mountCaptchaSlot()) {
             finish(result("ERROR", "CONFIG", MESSAGES.CAPTCHA_SLOT));
             return;
           }

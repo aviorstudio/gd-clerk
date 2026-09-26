@@ -12,7 +12,7 @@ Web export only. Native and headless calls return `UNAVAILABLE` once and do not 
 
 `configure(ClerkConfig, done)` requires a `pk_test_` or `pk_live_` publishable key, the exact `https://` Frontend API origin encoded by that key, and an explicit allowed-origin list. The current page origin is the browser `location.origin` property. An empty or unsupported origin is rejected and is not included in the error. The consuming project supplies the key, Frontend API, and allowed origins. This repository does not embed a game origin, publishable key, inbox, or sender.
 
-`begin_email_code(email, mode, done)` takes `0` for `SIGN_IN` and `1` for `SIGN_UP`. Sign-in never creates an account. Sign-up uses the legacy `client.signUp` resource only after the Smart CAPTCHA slot is mounted. Future hook methods are not used.
+`begin_email_code(email, mode, done)` takes `0` for `SIGN_IN` and `1` for `SIGN_UP`. Sign-in never creates an account and does not pass `signUpIfMissing`. Sign-up uses the legacy `client.signUp` resource. When the loaded environment explicitly reports captcha off, that call does not mount a slot. When Smart bot protection is enabled and both captcha site keys are present, a visible `#clerk-captcha` slot is required first. Future hook methods are not used.
 
 `complete_email_code`, `resend_email_code`, and `cancel_email_code` continue or stop that one attempt. Resend waits 30 seconds, matching Clerk's documented prebuilt cooldown. Callbacks run once.
 

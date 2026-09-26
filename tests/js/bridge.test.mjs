@@ -44,13 +44,26 @@ function dom() {
     body,
     documentElement: body,
     createElement() {
+      const attrs = new Map();
       return {
         id: "",
         style: {},
         dataset: {},
+        hidden: false,
         isConnected: false,
         className: "",
-        setAttribute() {},
+        setAttribute(name, value) {
+          attrs.set(name, String(value));
+          if (name === "hidden") this.hidden = true;
+        },
+        hasAttribute(name) {
+          return attrs.has(name) || (name === "hidden" && this.hidden === true);
+        },
+        getAttribute(name) {
+          if (attrs.has(name)) return attrs.get(name);
+          if (name === "hidden" && this.hidden === true) return "";
+          return null;
+        },
         classList: { add(name) { this.owner.className = name; }, owner: null },
       };
     },
@@ -137,7 +150,11 @@ function harness(options = {}) {
     },
     __internal_environment: {
       userSettings: { signUp: { captcha_enabled: true } },
-      displayConfig: { captchaWidgetType: "smart" },
+      displayConfig: {
+        captchaWidgetType: "smart",
+        captchaPublicKey: "test-captcha-site",
+        captchaPublicKeyInvisible: "test-captcha-invisible-site",
+      },
     },
     async load() { calls.push(["load"]); },
     async setActive({ session }) {
@@ -436,15 +453,17 @@ test("cancel settles the in-flight callback once", async () => {
 });
 
 test("sign-up requires confirmed Smart protection and a mounted slot before create", async () => {
-  const disabled = harness({ mutate({ clerk }) { clerk.__internal_environment.userSettings.signUp.captcha_enabled = false; } });
-  await call(disabled.bridge, "configure", config);
-  const denied = await call(disabled.bridge, "beginEmailCode", "person@example.com", "SIGN_UP");
-  assert.equal(denied.error_key, "UNSUPPORTED_CHALLENGE");
-  assert.equal(disabled.calls.some((item) => item[0] === "signUp.create"), false);
   const invisible = harness({ mutate({ clerk }) { clerk.__internal_environment.displayConfig.captchaWidgetType = "invisible"; } });
   await call(invisible.bridge, "configure", config);
   assert.equal((await call(invisible.bridge, "beginEmailCode", "person@example.com", "SIGN_UP")).error_key, "UNSUPPORTED_CHALLENGE");
   assert.equal(invisible.calls.some((item) => item[0] === "signUp.create"), false);
+  for (const keyName of ["captchaPublicKey", "captchaPublicKeyInvisible"]) {
+    const missingKeys = harness({ mutate({ clerk }) { delete clerk.__internal_environment.displayConfig[keyName]; } });
+    await call(missingKeys.bridge, "configure", config);
+    assert.equal((await call(missingKeys.bridge, "beginEmailCode", "person@example.com", "SIGN_UP")).error_key, "UNSUPPORTED_CHALLENGE");
+    assert.equal(missingKeys.calls.some((item) => item[0] === "signUp.create"), false);
+    assert.equal(missingKeys.page.document.getElementById("clerk-captcha"), null);
+  }
   const ok = harness();
   await call(ok.bridge, "configure", config);
   let slotAtCreate = false;
@@ -456,7 +475,127 @@ test("sign-up requires confirmed Smart protection and a mounted slot before crea
   const sent = await call(ok.bridge, "beginEmailCode", "person@example.com", "SIGN_UP");
   assert.equal(sent.state, "CODE_SENT");
   assert.equal(slotAtCreate, true);
+  assert.equal(ok.page.document.getElementById("clerk-captcha").hidden, false);
   assert.deepEqual(JSON.parse(JSON.stringify(ok.calls.find((item) => item[0] === "signUp.create")[1])), { emailAddress: "person@example.com" });
+});
+
+function placeSlot(page, fields = {}) {
+  const node = page.document.createElement("div");
+  node.id = "clerk-captcha";
+  Object.assign(node, fields);
+  page.document.body.appendChild(node);
+  return node;
+}
+
+test("explicit captcha off signs up without a slot or bypass", async () => {
+  for (const widget of ["smart", null]) {
+    const h = harness({ mutate({ clerk, signUp, calls }) {
+      clerk.__internal_environment.userSettings.signUp.captcha_enabled = false;
+      clerk.__internal_environment.displayConfig.captchaWidgetType = widget;
+      signUp.create = async (params) => {
+        calls.push(["signUp.create", params]);
+        return signUp;
+      };
+    } });
+    await call(h.bridge, "configure", config);
+    const sent = await call(h.bridge, "beginEmailCode", "person@example.com", "SIGN_UP");
+    assert.equal(sent.state, "CODE_SENT");
+    assert.equal(h.calls.some((item) => item[0] === "signUp.create"), true);
+    assert.equal(h.page.document.getElementById("clerk-captcha"), null);
+    assert.equal(h.clerk.client.captchaBypass, undefined);
+  }
+});
+
+test("captcha off still fails closed if an invisible challenge appears", async () => {
+  const h = harness({ mutate({ clerk, signUp, page }) {
+    clerk.__internal_environment.userSettings.signUp.captcha_enabled = false;
+    signUp.create = async () => {
+      const node = page.document.createElement("div");
+      node.className = "clerk-invisible-captcha";
+      page.document.body.appendChild(node);
+      return signUp;
+    };
+  } });
+  await call(h.bridge, "configure", config);
+  const stopped = await call(h.bridge, "beginEmailCode", "person@example.com", "SIGN_UP");
+  assert.equal(stopped.error_key, "UNSUPPORTED_CHALLENGE");
+  assert.equal(h.calls.some((item) => item[0] === "prepareEmail"), false);
+});
+
+test("enabled Smart rejects a hidden or undocumented pre-existing slot without create", async () => {
+  const hidden = harness({ mutate({ page }) { placeSlot(page, { hidden: true }); } });
+  await call(hidden.bridge, "configure", config);
+  const denied = await call(hidden.bridge, "beginEmailCode", "person@example.com", "SIGN_UP");
+  assert.equal(denied.state, "ERROR");
+  assert.equal(denied.error_key, "CONFIG");
+  assert.equal(hidden.calls.some((item) => item[0] === "signUp.create"), false);
+  assert.equal(hidden.page.document.getElementById("clerk-captcha").hidden, true);
+  const marked = harness({ mutate({ page }) {
+    const node = placeSlot(page);
+    node.setAttribute("data-clerk-captcha", "conditional");
+  } });
+  await call(marked.bridge, "configure", config);
+  assert.equal((await call(marked.bridge, "beginEmailCode", "person@example.com", "SIGN_UP")).error_key, "CONFIG");
+  assert.equal(marked.calls.some((item) => item[0] === "signUp.create"), false);
+  assert.equal(marked.page.document.getElementById("clerk-captcha").getAttribute("data-clerk-captcha"), "conditional");
+  const covered = harness({
+    window: { getComputedStyle: () => ({ display: "none", visibility: "visible" }) },
+    mutate({ page }) { placeSlot(page); },
+  });
+  await call(covered.bridge, "configure", config);
+  assert.equal((await call(covered.bridge, "beginEmailCode", "person@example.com", "SIGN_UP")).error_key, "CONFIG");
+  assert.equal(covered.calls.some((item) => item[0] === "signUp.create"), false);
+});
+
+test("enabled Smart accepts a visible documented slot and does not replace it", async () => {
+  const h = harness({ mutate({ page }) {
+    const node = placeSlot(page);
+    node.setAttribute("data-cl-theme", "dark");
+  } });
+  await call(h.bridge, "configure", config);
+  const existing = h.page.document.getElementById("clerk-captcha");
+  const sent = await call(h.bridge, "beginEmailCode", "person@example.com", "SIGN_UP");
+  assert.equal(sent.state, "CODE_SENT");
+  assert.equal(h.page.document.getElementById("clerk-captcha"), existing);
+  assert.equal(existing.getAttribute("data-cl-theme"), "dark");
+  assert.equal(existing.hidden, false);
+});
+
+test("captcha bypass and a non-boolean enabled flag fail before create", async () => {
+  const bypassed = harness({ mutate({ clerk }) { clerk.client.captchaBypass = true; } });
+  await call(bypassed.bridge, "configure", config);
+  assert.equal((await call(bypassed.bridge, "beginEmailCode", "person@example.com", "SIGN_UP")).error_key, "UNSUPPORTED_CHALLENGE");
+  assert.equal(bypassed.calls.some((item) => item[0] === "signUp.create"), false);
+  const offBypass = harness({ mutate({ clerk }) {
+    clerk.client.captchaBypass = true;
+    clerk.__internal_environment.userSettings.signUp.captcha_enabled = false;
+  } });
+  await call(offBypass.bridge, "configure", config);
+  assert.equal((await call(offBypass.bridge, "beginEmailCode", "person@example.com", "SIGN_UP")).error_key, "UNSUPPORTED_CHALLENGE");
+  assert.equal(offBypass.calls.some((item) => item[0] === "signUp.create"), false);
+  const textOff = harness({ mutate({ clerk }) { clerk.__internal_environment.userSettings.signUp.captcha_enabled = "false"; } });
+  await call(textOff.bridge, "configure", config);
+  assert.equal((await call(textOff.bridge, "beginEmailCode", "person@example.com", "SIGN_UP")).error_key, "UNSUPPORTED_CHALLENGE");
+  assert.equal(textOff.calls.some((item) => item[0] === "signUp.create"), false);
+  const missing = harness({ mutate({ clerk }) { delete clerk.__internal_environment; } });
+  await call(missing.bridge, "configure", config);
+  assert.equal((await call(missing.bridge, "beginEmailCode", "person@example.com", "SIGN_UP")).error_key, "UNSUPPORTED_CHALLENGE");
+  assert.equal(missing.calls.some((item) => item[0] === "signUp.create"), false);
+});
+
+test("a duplicate captcha render TypeError is not reported as network", async () => {
+  const rendered = harness({ mutate({ signUp }) {
+    signUp.create = async () => { throw new TypeError("Turnstile already been rendered in this element"); };
+  } });
+  await call(rendered.bridge, "configure", config);
+  const diagnostic = await call(rendered.bridge, "beginEmailCode", "person@example.com", "SIGN_UP");
+  assert.equal(diagnostic.state, "ERROR");
+  assert.equal(diagnostic.error_key, "UNKNOWN");
+  const network = harness({ mutate({ signUp }) {
+    signUp.create = async () => { throw new TypeError("Failed to fetch"); };
+  } });
+  await call(network.bridge, "configure", config);
+  assert.equal((await call(network.bridge, "beginEmailCode", "person@example.com", "SIGN_UP")).error_key, "NETWORK");
 });
 
 test("invisible fallback and failed captcha do not continue sign-up", async () => {

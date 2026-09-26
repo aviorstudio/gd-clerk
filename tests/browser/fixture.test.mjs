@@ -89,7 +89,11 @@ test("real browser loads the pinned clerk bundle and refuses invisible signup fa
             },
             __internal_environment: {
               userSettings: { signUp: { captcha_enabled: true } },
-              displayConfig: { captchaWidgetType: "smart" },
+              displayConfig: {
+                captchaWidgetType: "smart",
+                captchaPublicKey: "test-captcha-site",
+                captchaPublicKeyInvisible: "test-captcha-invisible-site",
+              },
             },
             async load() {},
             async setActive() {},

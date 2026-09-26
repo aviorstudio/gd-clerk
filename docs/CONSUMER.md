@@ -37,6 +37,6 @@ A redacted report may be sent to the maintainer who owns that proof. This reposi
 - `captcha_challenge`: `not_presented`
 - `captcha_challenge_accepted`: `false`
 
-A presented challenge is not acceptance. This repository's browser fixture mocks the Smart challenge and is not that proof.
+A presented challenge is not acceptance. This repository's browser fixture mocks the Smart challenge and is not that proof. Whether captcha is off is read from the loaded Clerk instance, not from a separate dashboard request. Reload after changing bot protection before judging that value. A consumer-supplied slot must be an unhidden `<div id="clerk-captcha">`, with optional `data-cl-theme`, `data-cl-size`, or `data-cl-language` only.
 
 The release publish job fails closed until a later code change. That change is not automatic enforcement of another repository, and it is not proof a report was reviewed.

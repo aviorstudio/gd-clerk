@@ -1,16 +1,19 @@
-# Smart CAPTCHA policy
+# CAPTCHA policy
 
-The user chose Clerk Smart bot sign-up protection ON.
+Bot protection is optional. The addon reads the Clerk instance after `load()`. It does not fetch dashboard configuration and does not change it.
 
-This build:
+`captcha_enabled === false` on that loaded object means sign-up calls `client.signUp.create()` with no CAPTCHA slot and no bypass. A string, a missing environment, or any other non-boolean is not off. The loaded value can be older than a dashboard change until the page loads again.
 
-- Reads `userSettings.signUp.captcha_enabled` and `displayConfig.captchaWidgetType` from the loaded Clerk environment.
-- Refuses sign-up unless captcha is enabled and the widget type is `smart`.
-- Mounts the documented `#clerk-captcha` slot before `client.signUp.create()`.
-- Does not call `signUp.create()` if the slot cannot be mounted.
-- Watches for `.clerk-invisible-captcha` during `create()` and fails closed if Clerk takes the deprecated invisible fallback.
-- Does not set captcha bypass, does not use the Native API, and does not disable bot protection.
+`captcha_enabled === true` is supported only when all of these are true:
 
-`appearance: interaction-only` is Clerk's own Turnstile setting. The slot stays in the DOM. Clerk expands it only when a visitor is challenged.
+- `displayConfig.captchaWidgetType` is `smart`
+- both `captchaPublicKey` and `captchaPublicKeyInvisible` are non-empty strings on that loaded object
+- `client.captchaBypass` is not `true`
 
-The browser fixture mocks the Smart challenge. This repository does not run a live Clerk instance, does not set Clerk's documented testing-token bypass, and does not claim interactive challenge completion. A consuming project's isolated test must treat a presented Turnstile widget as not accepted.
+Otherwise sign-up fails before `create()`. The addon never sets a bypass, testing token, or invisible fallback.
+
+When Smart is supported, a visible documented slot must exist before `create()`. The addon creates `<div id="clerk-captcha">` only when that id is absent. A consumer-supplied slot must be an unhidden `<div id="clerk-captcha">`. Optional attributes are `data-cl-theme`, `data-cl-size`, and `data-cl-language`. A hidden, disconnected, or `display: none` slot, or one with `data-clerk-captcha`, fails closed as `CONFIG` / `CAPTCHA_SLOT`. The addon does not unhide or rewrite that node.
+
+During `create()`, `.clerk-invisible-captcha` fails closed on both the off path and the Smart path. A presented challenge is not acceptance.
+
+The browser fixture mocks the Smart challenge. This repository does not run a live Clerk instance and does not claim interactive challenge completion.
