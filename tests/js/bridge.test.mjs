@@ -838,6 +838,29 @@ test("revoke ack races fail closed and do not deactivate early", async () => {
   assert.equal(replaced.phase, "revoke_stale");
   assert.equal(stale.calls.some((item) => item[0] === "setActive"), false);
 
+  const listeners = [];
+  const returned = harness({ mutate({ clerk }) {
+    clerk.addListener = (cb) => {
+      listeners.push(cb);
+      return () => {};
+    };
+  } });
+  await call(returned.bridge, "configure", config);
+  primeSession(returned);
+  returned.bridge.setRevokeSession(() => {
+    const away = { id: "sess_other", status: "active" };
+    returned.clerk.session = away;
+    listeners.forEach((cb) => cb({ session: away }));
+    const back = { id: "sess_current", status: "active", async getToken() { return "unused"; } };
+    returned.clerk.session = back;
+    listeners.forEach((cb) => cb({ session: back }));
+    returned.bridge.submitRevokeAck(revokeAck("sess_current", "user_current"));
+  });
+  const roundTrip = await call(returned.bridge, "signOut");
+  assert.equal(roundTrip.phase, "revoke_stale");
+  assert.equal(returned.calls.some((item) => item[0] === "setActive"), false);
+  assert.equal(JSON.stringify(roundTrip).includes("sess_"), false);
+
   const offline = harness();
   await call(offline.bridge, "configure", config);
   primeSession(offline);

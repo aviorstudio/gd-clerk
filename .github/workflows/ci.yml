@@ -60,6 +60,15 @@ jobs:
           TMPDIR: /tmp/pw-tmp
           GODOT_SILENCE_ROOT_WARNING: "1"
         run: node --test tests/web/configure_export.test.mjs
+      - name: Web export revoke regression
+        env:
+          GODOT_BIN: /usr/local/bin/godot
+          XDG_DATA_HOME: /tmp/godot-data
+          XDG_CONFIG_HOME: /tmp/godot-config
+          PLAYWRIGHT_BROWSERS_PATH: /tmp/ms-playwright
+          TMPDIR: /tmp/pw-tmp
+          GODOT_SILENCE_ROOT_WARNING: "1"
+        run: node --test tests/web/revoke_export.test.mjs
       - run: node scripts/package-addon.mjs
       - run: node scripts/verify-zip.mjs dist/@aviorstudio_gd-clerk.zip
       - name: Installed ZIP editor lifecycle

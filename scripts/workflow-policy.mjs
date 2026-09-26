@@ -83,6 +83,9 @@ export function assertWorkflows(root) {
   if (!ci.includes("node --test tests/web/configure_export.test.mjs") || !release.includes("node --test tests/web/configure_export.test.mjs")) {
     throw new Error("CI and release verification must run the web export configure regression");
   }
+  if (!ci.includes("node --test tests/web/revoke_export.test.mjs") || !release.includes("node --test tests/web/revoke_export.test.mjs")) {
+    throw new Error("CI and release verification must run the web export revoke regression");
+  }
   if (!ci.includes("github.event.pull_request.head.sha")) {
     throw new Error("CI candidate provenance must bind the branch commit, not the merge commit");
   }

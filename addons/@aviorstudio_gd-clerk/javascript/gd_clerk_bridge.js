@@ -78,6 +78,8 @@
     var pendingRevoke = null;
     var observedSid = "";
     var activeGeneration = 0;
+    var generationWatchClerk = null;
+    var generationUnlisten = null;
 
     function now() {
       return deps.now();
@@ -682,6 +684,7 @@
           clerk.addListener(function () { emitSession(); });
         } catch (e) {}
       }
+      ensureGenerationWatch();
       emitSession();
       finish(result("CONFIGURED", "", MESSAGES.CONFIGURED));
     }
@@ -1096,6 +1099,7 @@
       if (!sid || !sub || !clerk.session || typeof clerk.session.getToken !== "function" || typeof clerk.setActive !== "function") {
         return failedRevoke("UNKNOWN", "revoke_no_session");
       }
+      ensureGenerationWatch();
       var generation = touchGeneration();
       var snapshot = { sid: sid, sub: sub, generation: generation };
       var token = "";
@@ -1156,12 +1160,40 @@
     }
 
     function touchGeneration() {
-      var sid = currentSid();
+      return noteSid(currentSid());
+    }
+
+    function noteSid(sid) {
       if (sid !== observedSid) {
         observedSid = sid;
         activeGeneration += 1;
       }
       return activeGeneration;
+    }
+
+    function sidFromEmission(resources) {
+      if (!resources || typeof resources !== "object" || Array.isArray(resources)) return currentSid();
+      if (!Object.prototype.hasOwnProperty.call(resources, "session")) return currentSid();
+      var session = resources.session;
+      if (!session || typeof session.id !== "string") return "";
+      return session.id;
+    }
+
+    function ensureGenerationWatch() {
+      if (!clerk || typeof clerk.addListener !== "function" || generationWatchClerk === clerk) return;
+      if (typeof generationUnlisten === "function") {
+        try { generationUnlisten(); } catch (e) {}
+      }
+      generationWatchClerk = clerk;
+      generationUnlisten = null;
+      try {
+        var unsubscribe = clerk.addListener(function (resources) {
+          noteSid(sidFromEmission(resources));
+        });
+        if (typeof unsubscribe === "function") generationUnlisten = unsubscribe;
+      } catch (e) {
+        generationWatchClerk = null;
+      }
     }
 
     function requestRevokeAck(token, generation) {

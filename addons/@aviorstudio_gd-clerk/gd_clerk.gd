@@ -212,7 +212,11 @@ func _make_callback(id: int, done: Callable, allow_token: bool, cancellable: boo
 	var relay: Variant = _retain_relay(id, done, allow_token, cancellable)
 	if relay == null:
 		return null
-	return js.call("create_callback", Callable(relay, "on_js"))
+	var callback: Variant = js.call("create_callback", Callable(relay, "on_js"))
+	# The engine drops the JavaScript proxy when this Variant dies. A later
+	# bridge callback then no-ops, so the relay must hold it until delivery.
+	relay.js_callback = callback
+	return callback
 
 func _retain_relay(id: int, done: Callable, allow_token: bool, cancellable: bool) -> Variant:
 	if _relays.size() >= _MAX_LIVE_RELAYS:
@@ -306,10 +310,12 @@ class _Relay:
 	var cancellable: bool = false
 	var cancelled: bool = false
 	var settled: bool = false
+	var js_callback: Variant = null
 
 	func on_js(args: Array) -> void:
 		if settled:
 			return
+		js_callback = null
 		if not is_instance_valid(owner):
 			settled = true
 			return
