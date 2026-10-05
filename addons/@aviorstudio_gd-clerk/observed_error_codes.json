@@ -1,0 +1,18 @@
+{
+  "pinned_sdk": "@clerk/clerk-js@6.33.0",
+  "sources": [
+    "https://clerk.com/docs/guides/development/errors/frontend-api",
+    "packages/clerk-js captcha_script_failed_to_load and captcha_unavailable in pinned 6.33.0 browser bundle"
+  ],
+  "codes": {
+    "form_code_incorrect": "INVALID_CODE",
+    "verification_expired": "EXPIRED_CODE",
+    "too_many_requests": "RATE_LIMIT",
+    "signup_rate_limit_exceeded": "RATE_LIMIT",
+    "strategy_for_user_invalid": "UNSUPPORTED_CHALLENGE",
+    "signed_out": "SESSION_EXPIRED",
+    "captcha_invalid": "UNKNOWN",
+    "captcha_unavailable": "CONFIG",
+    "captcha_script_failed_to_load": "CONFIG"
+  }
+}
