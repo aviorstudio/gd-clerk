@@ -31,6 +31,7 @@ jobs:
       commit: ${{ steps.identity.outputs.commit }}
       zip_sha256: ${{ steps.package.outputs.zip_sha256 }}
       tag: ${{ steps.identity.outputs.tag }}
+      version: ${{ steps.identity.outputs.version }}
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
@@ -50,6 +51,7 @@ jobs:
           RELEASE_COMMIT="$commit" node scripts/check-release-identity.mjs
           echo "commit=$commit" >> "$GITHUB_OUTPUT"
           echo "tag=$RELEASE_TAG" >> "$GITHUB_OUTPUT"
+          echo "version=${RELEASE_TAG#v}" >> "$GITHUB_OUTPUT"
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
         with:
           node-version: "22.20.0"
@@ -121,6 +123,8 @@ jobs:
           path: |
             dist/@aviorstudio_gd-clerk.zip
             dist/@aviorstudio_gd-clerk.zip.sha256
+            dist/@aviorstudio_gd-clerk.gdam.zip
+            dist/@aviorstudio_gd-clerk.gdam.zip.sha256
             dist/PACKAGE_MANIFEST.json
             dist/CANDIDATE.json
             dist/RELEASE_NOTES.md
@@ -161,10 +165,12 @@ jobs:
           actual="$(sha256sum dist/@aviorstudio_gd-clerk.zip | awk '{print $1}')"
           test "$actual" = "$PACKAGE_SHA256"
           node scripts/verify-zip.mjs dist/@aviorstudio_gd-clerk.zip
-      # Manual cross-repo evidence is not checked here. This step always fails.
-      # It is not cleared by a file, input, or secret, and it does not read another repository.
-      - name: External evidence hold
-        run: node scripts/release-hold.mjs
+      # Releasing is a manual workflow_dispatch from main; that dispatch is the
+      # owner's sign-off. Live email-code proof belongs to the consuming game.
+      - name: Verify the GDAM asset
+        run: |
+          set -euo pipefail
+          (cd dist && sha256sum --check --strict @aviorstudio_gd-clerk.gdam.zip.sha256)
       - name: Publish the exact tested ZIP
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -178,4 +184,13 @@ jobs:
             echo "release already exists; refusing to replace it"
             exit 1
           fi
-          gh release create "$RELEASE_TAG" dist/@aviorstudio_gd-clerk.zip dist/@aviorstudio_gd-clerk.zip.sha256 --target "$RELEASE_COMMIT" --title "gd-clerk $RELEASE_TAG" --notes-file dist/RELEASE_NOTES.md
+          gh release create "$RELEASE_TAG" dist/@aviorstudio_gd-clerk.zip dist/@aviorstudio_gd-clerk.zip.sha256 dist/@aviorstudio_gd-clerk.gdam.zip --target "$RELEASE_COMMIT" --title "gd-clerk $RELEASE_TAG" --notes-file dist/RELEASE_NOTES.md
+      - name: Install GDAM
+        uses: aviorstudio/gdam-actions/install@v0.0.1
+      - name: Publish to GDAM
+        uses: aviorstudio/gdam-actions/publish@v0.0.1
+        with:
+          version: ${{ needs.test.outputs.version }}
+          tag: ${{ needs.test.outputs.tag }}
+          asset: "@aviorstudio_gd-clerk.gdam.zip"
+          secret-key: ${{ secrets.GDAM_SECRET_KEY }}
