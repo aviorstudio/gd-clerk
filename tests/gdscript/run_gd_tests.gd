@@ -7,6 +7,7 @@ func _init() -> void:
 func _run() -> bool:
 	var failed := false
 	failed = _expect(_native_unavailable(), "native methods return UNAVAILABLE once") or failed
+	failed = _expect(_config_resource(), "Inspector configuration round-trips without runtime callbacks") or failed
 	failed = _expect(_policy(), "config policy rejects unsafe and unlisted origins") or failed
 	failed = _expect(_origin_closed(), "empty and unsupported origins fail closed without echoing") or failed
 	failed = _expect(_html(), "web export injects pinned local scripts") or failed
@@ -211,3 +212,14 @@ func _session_owner_freed() -> bool:
 	clerk.free()
 	relay.on_js(['{"signed_in":false,"status":"signed_out","protected_actions_blocked":true}'])
 	return statuses.size() == 1
+
+func _config_resource() -> bool:
+	var config := _sample_config()
+	config.revoke_session = func(_jwt: String, _done: Callable) -> void: pass
+	var path := "user://clerk-config-test.tres"
+	if ResourceSaver.save(config, path) != OK:
+		return false
+	var restored := ResourceLoader.load(path, "", ResourceLoader.CACHE_MODE_IGNORE) as ClerkConfig
+	var text := FileAccess.get_file_as_string(path)
+	DirAccess.remove_absolute(path)
+	return restored != null and restored.to_dictionary() == config.to_dictionary() and not restored.revoke_session.is_valid() and not text.contains("revoke_session")
