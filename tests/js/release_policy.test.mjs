@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { existsSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { test } from "node:test";
 import { fileURLToPath } from "node:url";
@@ -10,7 +10,6 @@ import { couplingHits } from "../../scripts/consumer-boundary.mjs";
 import { assertReleaseIdentity } from "../../scripts/check-release-identity.mjs";
 import { godotLogProblems } from "../../scripts/reject-godot-log.mjs";
 import { assertChecksum, assertMainRef } from "../../scripts/release-guard.mjs";
-import { assertPublishBlocked } from "../../scripts/release-hold.mjs";
 import { assertNotes, renderNotes } from "../../scripts/release-notes.mjs";
 import { assertWorkflows } from "../../scripts/workflow-policy.mjs";
 
@@ -41,16 +40,13 @@ test("zip stamp stays at UTC epoch in every timezone", () => {
   }
 });
 
-test("publish hold ignores sentinel files and acceptance inputs", () => {
-  assert.throws(() => assertPublishBlocked(), /publishing is disabled/);
-  const dir = mkdtempSync("/tmp/gd-clerk-hold-XXXXXX");
-  writeFileSync(join(dir, "ACCEPTED"), "ACCEPTED\n");
-  const rejected = spawnSync(process.execPath, [join(root, "scripts/release-hold.mjs"), "--accept", dir], {
-    encoding: "utf8",
-    env: { ...process.env, EXTERNAL_EVIDENCE_ACCEPTED: "true", ACCEPTED: "1" },
-  });
-  assert.notEqual(rejected.status, 0);
-  assert.match(rejected.stderr, /publishing is disabled/);
+test("release publishes the tested zips to GitHub and then GDAM, only by hand", () => {
+  const release = readFileSync(join(root, ".github/workflows/release.yml"), "utf8");
+  assert.match(release, /\non:\n  workflow_dispatch:\n/);
+  assert.ok(release.indexOf("gh release create") < release.indexOf("gdam-actions/publish@"));
+  assert.ok(release.includes("dist/@aviorstudio_gd-clerk.gdam.zip --target"));
+  assert.ok(release.includes("sha256sum --check --strict @aviorstudio_gd-clerk.gdam.zip.sha256"));
+  assert.equal(existsSync(join(root, "scripts/release-hold.mjs")), false);
 });
 
 test("candidate provenance is generic and is not a release", () => {
@@ -104,7 +100,7 @@ test("release notes are package provenance", () => {
   assert.throws(() => assertNotes("# Release failure recovery\n", info));
 });
 
-test("workflows keep the publish token narrow and the evidence hold unconditional", () => {
+test("workflows keep the publish token narrow and releases manual", () => {
   assertWorkflows(root);
   const allow = JSON.parse(readFileSync(join(root, "scripts/package-allowlist.json"), "utf8"));
   assert.equal(allow.addon_files, 33);

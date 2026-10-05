@@ -62,7 +62,16 @@
     SDK_VERSION: "Clerk SDK version does not match the pinned build.",
     PROTECTED_BLOCKED: "Protected actions are blocked until sign-out is confirmed."
   };
-  var BROWSER_SCRIPT_SRC = "gd-clerk/clerk.browser.js";
+  // The bundle sits beside this bridge. Resolving it from the bridge's own URL
+  // keeps it loading when a project serves the export from a subdirectory.
+  var BROWSER_SCRIPT_SRC = browserScriptSrc(root.document && root.document.currentScript);
+
+  function browserScriptSrc(current) {
+    var src = current && typeof current.src === "string" ? current.src : "";
+    var slash = src.lastIndexOf("/");
+    if (slash < 0 || !/\/gd-clerk\/gd_clerk_bridge\.js(?:[?#].*)?$/.test(src)) return "gd-clerk/clerk.browser.js";
+    return src.slice(0, slash + 1) + "clerk.browser.js";
+  }
 
   function createBridge(deps) {
     var clerk = null;
@@ -1294,5 +1303,6 @@
     atob: function (value) { return root.atob(value); }
   });
   bridge._createForTest = createBridge;
+  bridge._browserScriptSrcForTest = browserScriptSrc;
   root.GdClerkBridge = bridge;
 })(typeof window !== "undefined" ? window : globalThis);

@@ -53,63 +53,7 @@ entries.push({
   sha256: createHash("sha256").update(manifestBytes).digest("hex"),
 });
 
-const fixed = FIXED_ZIP_STAMP;
-const parts = [];
-const central = [];
-let offset = 0;
-for (const entry of entries) {
-  const name = Buffer.from(entry.name);
-  const compressed = deflateRawSync(entry.data);
-  const useStore = compressed.length >= entry.data.length;
-  const method = useStore ? 0 : 8;
-  const payload = useStore ? entry.data : compressed;
-  const local = Buffer.alloc(30 + name.length);
-  local.writeUInt32LE(0x04034b50, 0);
-  local.writeUInt16LE(20, 4);
-  local.writeUInt16LE(0, 6);
-  local.writeUInt16LE(method, 8);
-  local.writeUInt16LE(fixed.time, 10);
-  local.writeUInt16LE(fixed.day, 12);
-  local.writeUInt32LE(crc32(entry.data), 14);
-  local.writeUInt32LE(payload.length, 18);
-  local.writeUInt32LE(entry.data.length, 22);
-  local.writeUInt16LE(name.length, 26);
-  local.writeUInt16LE(0, 28);
-  name.copy(local, 30);
-  parts.push(local, payload);
-  const cen = Buffer.alloc(46 + name.length);
-  cen.writeUInt32LE(0x02014b50, 0);
-  cen.writeUInt16LE(20, 4);
-  cen.writeUInt16LE(20, 6);
-  cen.writeUInt16LE(0, 8);
-  cen.writeUInt16LE(method, 10);
-  cen.writeUInt16LE(fixed.time, 12);
-  cen.writeUInt16LE(fixed.day, 14);
-  cen.writeUInt32LE(crc32(entry.data), 16);
-  cen.writeUInt32LE(payload.length, 20);
-  cen.writeUInt32LE(entry.data.length, 24);
-  cen.writeUInt16LE(name.length, 28);
-  cen.writeUInt16LE(0, 30);
-  cen.writeUInt16LE(0, 32);
-  cen.writeUInt16LE(0, 34);
-  cen.writeUInt16LE(0, 36);
-  cen.writeUInt32LE(0, 38);
-  cen.writeUInt32LE(offset, 42);
-  name.copy(cen, 46);
-  central.push(cen);
-  offset += local.length + payload.length;
-}
-const centralBuf = Buffer.concat(central);
-const end = Buffer.alloc(22);
-end.writeUInt32LE(0x06054b50, 0);
-end.writeUInt16LE(0, 4);
-end.writeUInt16LE(0, 6);
-end.writeUInt16LE(entries.length, 8);
-end.writeUInt16LE(entries.length, 10);
-end.writeUInt32LE(centralBuf.length, 12);
-end.writeUInt32LE(offset, 16);
-end.writeUInt16LE(0, 20);
-const zip = Buffer.concat([...parts, centralBuf, end]);
+const zip = buildZip(entries);
 const zipPath = join(dist, "@aviorstudio_gd-clerk.zip");
 writeFileSync(zipPath, zip);
 const sha = createHash("sha256").update(zip).digest("hex");
@@ -117,6 +61,75 @@ writeFileSync(zipPath + ".sha256", sha + "  @aviorstudio_gd-clerk.zip\n");
 writeFileSync(join(dist, "PACKAGE_MANIFEST.json"), manifestBytes);
 console.log(sha);
 verifyZip(zipPath);
+
+// GDAM installs a release asset only when plugin.cfg sits at the archive root,
+// so the registry gets the same addon files without the addons/ prefix or the
+// project-root manifest.
+const gdamPrefix = "addons/@aviorstudio_gd-clerk/";
+const gdamZip = buildZip(entries.filter((entry) => entry.name.startsWith(gdamPrefix)).map((entry) => ({ ...entry, name: entry.name.slice(gdamPrefix.length) })));
+const gdamPath = join(dist, "@aviorstudio_gd-clerk.gdam.zip");
+writeFileSync(gdamPath, gdamZip);
+writeFileSync(gdamPath + ".sha256", createHash("sha256").update(gdamZip).digest("hex") + "  @aviorstudio_gd-clerk.gdam.zip\n");
+
+function buildZip(zipEntries) {
+  const fixed = FIXED_ZIP_STAMP;
+  const parts = [];
+  const central = [];
+  let offset = 0;
+  for (const entry of zipEntries) {
+    const name = Buffer.from(entry.name);
+    const compressed = deflateRawSync(entry.data);
+    const useStore = compressed.length >= entry.data.length;
+    const method = useStore ? 0 : 8;
+    const payload = useStore ? entry.data : compressed;
+    const local = Buffer.alloc(30 + name.length);
+    local.writeUInt32LE(0x04034b50, 0);
+    local.writeUInt16LE(20, 4);
+    local.writeUInt16LE(0, 6);
+    local.writeUInt16LE(method, 8);
+    local.writeUInt16LE(fixed.time, 10);
+    local.writeUInt16LE(fixed.day, 12);
+    local.writeUInt32LE(crc32(entry.data), 14);
+    local.writeUInt32LE(payload.length, 18);
+    local.writeUInt32LE(entry.data.length, 22);
+    local.writeUInt16LE(name.length, 26);
+    local.writeUInt16LE(0, 28);
+    name.copy(local, 30);
+    parts.push(local, payload);
+    const cen = Buffer.alloc(46 + name.length);
+    cen.writeUInt32LE(0x02014b50, 0);
+    cen.writeUInt16LE(20, 4);
+    cen.writeUInt16LE(20, 6);
+    cen.writeUInt16LE(0, 8);
+    cen.writeUInt16LE(method, 10);
+    cen.writeUInt16LE(fixed.time, 12);
+    cen.writeUInt16LE(fixed.day, 14);
+    cen.writeUInt32LE(crc32(entry.data), 16);
+    cen.writeUInt32LE(payload.length, 20);
+    cen.writeUInt32LE(entry.data.length, 24);
+    cen.writeUInt16LE(name.length, 28);
+    cen.writeUInt16LE(0, 30);
+    cen.writeUInt16LE(0, 32);
+    cen.writeUInt16LE(0, 34);
+    cen.writeUInt16LE(0, 36);
+    cen.writeUInt32LE(0, 38);
+    cen.writeUInt32LE(offset, 42);
+    name.copy(cen, 46);
+    central.push(cen);
+    offset += local.length + payload.length;
+  }
+  const centralBuf = Buffer.concat(central);
+  const end = Buffer.alloc(22);
+  end.writeUInt32LE(0x06054b50, 0);
+  end.writeUInt16LE(0, 4);
+  end.writeUInt16LE(0, 6);
+  end.writeUInt16LE(zipEntries.length, 8);
+  end.writeUInt16LE(zipEntries.length, 10);
+  end.writeUInt32LE(centralBuf.length, 12);
+  end.writeUInt32LE(offset, 16);
+  end.writeUInt16LE(0, 20);
+  return Buffer.concat([...parts, centralBuf, end]);
+}
 
 function crc32(buf) {
   let crc = ~0;
