@@ -35,3 +35,7 @@ The browser files under `javascript/clerk/` are the exact `6.33.0` `clerk.browse
 ## Not released
 
 There is no production release. This addon is game-agnostic. A consuming project may test the candidate ZIP in an isolated integration. That ZIP is not a released pin. Live email-code proof belongs to the consuming project. This repository does not run that proof, does not read another repository's evidence, and does not accept a committed acceptance file. The browser fixture mocks the Smart challenge and does not claim interactive challenge completion. See `docs/CONSUMER.md`, `docs/CAPTCHA.md`, `docs/CSP.md`, and `docs/FAILURE_RECOVERY.md`.
+
+### Inspector configuration
+
+Create a `ClerkConfig` resource in the FileSystem dock and save it as a `.tres` file. Edit its publishable key, frontend API URL, and allowed origins in the Inspector, then load that resource and pass it to `GdClerk.configure(config, done)`. These are public configuration values. Set the consumer's `revoke_session` callback at runtime before configuring; callbacks and session tokens are never saved in the resource.

@@ -9,6 +9,10 @@ export HOME="${HOME:-/tmp}"
 export XDG_CONFIG_HOME="${XDG_CONFIG_HOME:-/tmp/godot-config}"
 export XDG_DATA_HOME="${XDG_DATA_HOME:-/tmp/godot-userdata}"
 mkdir -p "$XDG_CONFIG_HOME" "$XDG_DATA_HOME"
+# npm dependencies are not Godot project assets. Avoid importing their fixtures.
+if [[ -d node_modules ]]; then
+  touch node_modules/.gdignore
+fi
 log="$(mktemp /tmp/gd-clerk-godot.XXXXXX)"
 set +e
 "$godot" --headless --import --path . --quit >"$log" 2>&1
