@@ -42,13 +42,14 @@ export function assertWorkflows(root) {
   for (const item of forbidden) {
     if (release.includes(item) || ci.includes(item)) throw new Error(`workflow contains ${item}`);
   }
-  const holdAt = release.indexOf("node scripts/release-hold.mjs");
-  const createAt = release.indexOf("gh release create");
-  if (holdAt < 0 || createAt < holdAt) throw new Error("publish must fail closed before creating a release");
-  const stepStart = release.lastIndexOf("\n      - name:", holdAt);
-  const step = release.slice(stepStart, holdAt);
-  if (/\bif:/.test(step) || /continue-on-error/.test(step)) {
-    throw new Error("external evidence hold must not be conditional");
+  if (!/\non:\n  workflow_dispatch:\n/.test(release) || /\n  (push|pull_request|schedule|release|workflow_run):/.test(releaseHead)) {
+    throw new Error("release must only run from a manual workflow_dispatch");
+  }
+  const createAt = publish.indexOf("gh release create");
+  const gdamAt = publish.indexOf("aviorstudio/gdam-actions/publish@");
+  if (createAt < 0 || gdamAt < createAt) throw new Error("GDAM publish must follow the GitHub release it points at");
+  if (!publish.includes('asset: "@aviorstudio_gd-clerk.gdam.zip"')) {
+    throw new Error("GDAM must publish the flat addon asset");
   }
   const required = [
     "npm test",
@@ -58,7 +59,6 @@ export function assertWorkflows(root) {
     "node scripts/package-addon.mjs",
     "node scripts/verify-zip.mjs",
     "node scripts/editor-lifecycle.mjs",
-    "node scripts/release-hold.mjs",
     "node scripts/release-guard.mjs --main",
     "sha256sum --check --strict",
     "gh release create",

@@ -925,3 +925,21 @@ test("bridge source does not mix future methods or call FAPI itself", () => {
   assert.equal(source.includes("setActive({ session: null })"), true);
   assert.equal(source.includes("gd-clerk.revoke.v1"), true);
 });
+
+test("bridge loads the Clerk bundle from beside its own script", () => {
+  function loaded(currentScript) {
+    const sandbox = { document: { currentScript } };
+    sandbox.window = sandbox;
+    runInContext(source, createContext(sandbox), { filename: "gd_clerk_bridge.js" });
+    return sandbox.GdClerkBridge._browserScriptSrcForTest;
+  }
+  const resolve = loaded(null);
+  assert.equal(resolve(null), "gd-clerk/clerk.browser.js");
+  assert.equal(resolve({ src: "" }), "gd-clerk/clerk.browser.js");
+  assert.equal(resolve({ src: "https://game.example/gd-clerk/gd_clerk_bridge.js" }), "https://game.example/gd-clerk/clerk.browser.js");
+  assert.equal(
+    resolve({ src: "https://game.example/releases/abc/gd-clerk/gd_clerk_bridge.js?v=1" }),
+    "https://game.example/releases/abc/gd-clerk/clerk.browser.js",
+  );
+  assert.equal(resolve({ src: "https://other.example/evil.js" }), "gd-clerk/clerk.browser.js");
+});
