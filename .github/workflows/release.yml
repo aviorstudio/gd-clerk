@@ -185,12 +185,13 @@ jobs:
             exit 1
           fi
           gh release create "$RELEASE_TAG" dist/@aviorstudio_gd-clerk.zip dist/@aviorstudio_gd-clerk.zip.sha256 dist/@aviorstudio_gd-clerk.gdam.zip --target "$RELEASE_COMMIT" --title "gd-clerk $RELEASE_TAG" --notes-file dist/RELEASE_NOTES.md
-      - name: Install GDAM
-        uses: aviorstudio/gdam-actions/install@v0.0.1
-      - name: Publish to GDAM
-        uses: aviorstudio/gdam-actions/publish@v0.0.1
+      - name: Install checksummed GDAM 0.0.8
+        uses: aviorstudio/gdam-actions/install@d735444eb470194585def44521d5d91df2260e63 # v0.0.2
         with:
-          version: ${{ needs.test.outputs.version }}
+          version: v0.0.8
+      - name: Publish to GDAM
+        uses: aviorstudio/gdam-actions/publish@d735444eb470194585def44521d5d91df2260e63 # v0.0.2
+        with:
           tag: ${{ needs.test.outputs.tag }}
           asset: "@aviorstudio_gd-clerk.gdam.zip"
           secret-key: ${{ secrets.GDAM_SECRET_KEY }}
