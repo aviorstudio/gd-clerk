@@ -1,3 +1,5 @@
+<!-- Generated from private documentation source. Do not edit directly. Source SHA256: 184361f8de82404041cb71796d6ee4b4d80f43fcef473451c0fb0c3044bb53d2 -->
+
 # gd-clerk
 
 Godot 4.7 addon for web email-code sign-in and sign-up through the pinned official `@clerk/clerk-js@6.33.0` browser bundle. Plugin version `0.1.0`.
