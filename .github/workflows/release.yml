@@ -1,0 +1,181 @@
+name: release
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Release tag that must match package.json
+        required: true
+        default: v0.1.0
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.repository }}
+  cancel-in-progress: false
+
+jobs:
+  guard:
+    if: github.ref != 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "release only runs from main" && exit 1
+
+  test:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    outputs:
+      commit: ${{ steps.identity.outputs.commit }}
+      zip_sha256: ${{ steps.package.outputs.zip_sha256 }}
+      tag: ${{ steps.identity.outputs.tag }}
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: main
+          fetch-depth: 0
+      - name: Require main
+        id: identity
+        env:
+          RELEASE_TAG: ${{ inputs.tag }}
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          commit="$(git rev-parse HEAD)"
+          origin="$(git rev-parse origin/main)"
+          test "$commit" = "$origin"
+          RELEASE_REF="$GITHUB_REF" RELEASE_HEAD="$commit" RELEASE_ORIGIN_MAIN="$origin" node scripts/release-guard.mjs --main
+          RELEASE_COMMIT="$commit" node scripts/check-release-identity.mjs
+          echo "commit=$commit" >> "$GITHUB_OUTPUT"
+          echo "tag=$RELEASE_TAG" >> "$GITHUB_OUTPUT"
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: "22.20.0"
+          cache: npm
+      - run: npm ci
+      - run: node scripts/vendor-clerk.mjs --check
+      - run: node scripts/scan.mjs
+      - run: node scripts/workflow-policy.mjs
+      - run: npm test
+      - run: bash scripts/install-godot.sh /usr/local/bin/godot
+      - run: bash scripts/run-godot-tests.sh
+      - name: Browser fixture (mocked Clerk, not live e2e)
+        env:
+          PLAYWRIGHT_BROWSERS_PATH: /tmp/ms-playwright
+        run: |
+          mkdir -p /tmp/pw-tmp
+          TMPDIR=/tmp/pw-tmp npx playwright install chromium
+          TMPDIR=/tmp/pw-tmp npm run test:browser
+      - name: Install Godot web export templates
+        env:
+          XDG_DATA_HOME: /tmp/godot-data
+        run: bash scripts/install-godot-templates.sh
+      - name: Web export origin regression
+        env:
+          GODOT_BIN: /usr/local/bin/godot
+          XDG_DATA_HOME: /tmp/godot-data
+          XDG_CONFIG_HOME: /tmp/godot-config
+          PLAYWRIGHT_BROWSERS_PATH: /tmp/ms-playwright
+          TMPDIR: /tmp/pw-tmp
+          GODOT_SILENCE_ROOT_WARNING: "1"
+        run: node --test tests/web/origin_export.test.mjs
+      - name: Web export configure regression
+        env:
+          GODOT_BIN: /usr/local/bin/godot
+          XDG_DATA_HOME: /tmp/godot-data
+          XDG_CONFIG_HOME: /tmp/godot-config
+          PLAYWRIGHT_BROWSERS_PATH: /tmp/ms-playwright
+          TMPDIR: /tmp/pw-tmp
+          GODOT_SILENCE_ROOT_WARNING: "1"
+        run: node --test tests/web/configure_export.test.mjs
+      - name: Web export revoke regression
+        env:
+          GODOT_BIN: /usr/local/bin/godot
+          XDG_DATA_HOME: /tmp/godot-data
+          XDG_CONFIG_HOME: /tmp/godot-config
+          PLAYWRIGHT_BROWSERS_PATH: /tmp/ms-playwright
+          TMPDIR: /tmp/pw-tmp
+          GODOT_SILENCE_ROOT_WARNING: "1"
+        run: node --test tests/web/revoke_export.test.mjs
+      - name: Package the closed addon and record provenance
+        id: package
+        env:
+          RELEASE_TAG: ${{ steps.identity.outputs.tag }}
+          RELEASE_COMMIT: ${{ steps.identity.outputs.commit }}
+        run: |
+          set -euo pipefail
+          node scripts/package-addon.mjs
+          node scripts/verify-zip.mjs dist/@aviorstudio_gd-clerk.zip
+          sha="$(awk '{print $1}' dist/@aviorstudio_gd-clerk.zip.sha256)"
+          node scripts/candidate-provenance.mjs --zip dist/@aviorstudio_gd-clerk.zip --commit "$RELEASE_COMMIT" --out dist/CANDIDATE.json
+          PACKAGE_SHA256="$sha" node scripts/release-notes.mjs --tag "$RELEASE_TAG" --commit "$RELEASE_COMMIT" --zip-sha256 "$sha" --out dist/RELEASE_NOTES.md
+          echo "zip_sha256=$sha" >> "$GITHUB_OUTPUT"
+      - name: Installed ZIP editor lifecycle
+        run: node scripts/editor-lifecycle.mjs dist/@aviorstudio_gd-clerk.zip
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: gd-clerk-release
+          if-no-files-found: error
+          path: |
+            dist/@aviorstudio_gd-clerk.zip
+            dist/@aviorstudio_gd-clerk.zip.sha256
+            dist/PACKAGE_MANIFEST.json
+            dist/CANDIDATE.json
+            dist/RELEASE_NOTES.md
+
+  publish:
+    needs: test
+    if: needs.test.result == 'success' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: ${{ needs.test.outputs.commit }}
+          fetch-depth: 0
+      - name: Require the tested main commit
+        env:
+          RELEASE_COMMIT: ${{ needs.test.outputs.commit }}
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          origin="$(git rev-parse origin/main)"
+          test "$(git rev-parse HEAD)" = "$RELEASE_COMMIT"
+          test "$origin" = "$RELEASE_COMMIT"
+          RELEASE_REF="$GITHUB_REF" RELEASE_HEAD="$RELEASE_COMMIT" RELEASE_ORIGIN_MAIN="$origin" node scripts/release-guard.mjs --main
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          name: gd-clerk-release
+          path: dist
+      - name: Verify tested artifact identity
+        env:
+          PACKAGE_SHA256: ${{ needs.test.outputs.zip_sha256 }}
+        run: |
+          set -euo pipefail
+          (cd dist && sha256sum --check --strict @aviorstudio_gd-clerk.zip.sha256)
+          node scripts/release-guard.mjs --checksum dist/@aviorstudio_gd-clerk.zip.sha256
+          actual="$(sha256sum dist/@aviorstudio_gd-clerk.zip | awk '{print $1}')"
+          test "$actual" = "$PACKAGE_SHA256"
+          node scripts/verify-zip.mjs dist/@aviorstudio_gd-clerk.zip
+      # Manual cross-repo evidence is not checked here. This step always fails.
+      # It is not cleared by a file, input, or secret, and it does not read another repository.
+      - name: External evidence hold
+        run: node scripts/release-hold.mjs
+      - name: Publish the exact tested ZIP
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_TAG: ${{ needs.test.outputs.tag }}
+          RELEASE_COMMIT: ${{ needs.test.outputs.commit }}
+        run: |
+          set -euo pipefail
+          test -n "${GH_TOKEN}"
+          test "$(git rev-parse HEAD)" = "$RELEASE_COMMIT"
+          if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
+            echo "release already exists; refusing to replace it"
+            exit 1
+          fi
+          gh release create "$RELEASE_TAG" dist/@aviorstudio_gd-clerk.zip dist/@aviorstudio_gd-clerk.zip.sha256 --target "$RELEASE_COMMIT" --title "gd-clerk $RELEASE_TAG" --notes-file dist/RELEASE_NOTES.md

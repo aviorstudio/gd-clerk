@@ -1,0 +1,67 @@
+{
+  "package": "@clerk/clerk-js",
+  "version": "6.33.0",
+  "integrity": "sha512-cguJDbEOHNlNknh2E2pkqcQkuqhALZqGU76v91W9cP38tWYl+fxh374PA1XbcAeSUl6r0sa/OJBuGjuJNEuC2A==",
+  "files": [
+    {
+      "name": "10_clerk.browser_109cfd_6.33.0.js",
+      "sha256": "b0f68b6bd385cc51efcfa7a5641748e04a7c034b50622a98eb98be329d4b2f65",
+      "bytes": 166
+    },
+    {
+      "name": "321_clerk.browser_109cfd_6.33.0.js",
+      "sha256": "cf899dbdeab3a8216a235d2651e83c683d799ab2b3402f403b658c49ed5746ea",
+      "bytes": 2544
+    },
+    {
+      "name": "494_clerk.browser_109cfd_6.33.0.js",
+      "sha256": "7b6b992e3c7c5eaf92f0ce260d4411ebd48fc1db81ec2e33f488d34d921d1e1c",
+      "bytes": 2116
+    },
+    {
+      "name": "base-account-sdk_clerk.browser_109cfd_6.33.0.js",
+      "sha256": "f88d37558211a5f9ebe94ad98724657421f36e21d7c5d1121c73a4078d9f259c",
+      "bytes": 588694
+    },
+    {
+      "name": "clerk.browser.js",
+      "sha256": "3b59d7ed9118cc3340f6c0b3544b465e5f8b7d5cb4ea2f1aeea126b1de116159",
+      "bytes": 314186
+    },
+    {
+      "name": "coinbase-wallet-sdk_clerk.browser_109cfd_6.33.0.js",
+      "sha256": "551fd618c65110e67517f6f85e60f3ab5a0308bcbc6636690b7ca65de3af93ee",
+      "bytes": 104670
+    },
+    {
+      "name": "cookieSuffix_clerk.browser_109cfd_6.33.0.js",
+      "sha256": "a5bec7759a9fc07be670643285f44dd279baaf1899eddf034b11c07f887a2f1a",
+      "bytes": 120
+    },
+    {
+      "name": "query-core-vendors_clerk.browser_109cfd_6.33.0.js",
+      "sha256": "0c221261f78620dcd8e3063512e55a977d0bb10c4b32554acfffb33b1bf70769",
+      "bytes": 24119
+    },
+    {
+      "name": "stripe-vendors_clerk.browser_109cfd_6.33.0.js",
+      "sha256": "3ee490c332b277963a008b8643b5e76434299b38e8c8a13c9189ab62c2969a23",
+      "bytes": 1829
+    },
+    {
+      "name": "vendors_clerk.browser_109cfd_6.33.0.js",
+      "sha256": "9ee0bdd7ca9d4140c657872d8f3bc5da1d8612e871ed02139f95f7ee1f47ddec",
+      "bytes": 6797
+    },
+    {
+      "name": "zxcvbn-common_clerk.browser_109cfd_6.33.0.js",
+      "sha256": "6eae3240f6c5e04cc74a2d7754d13a58bf29b806d1e9d02af19dd6b41a3911dd",
+      "bytes": 465129
+    },
+    {
+      "name": "zxcvbn-ts-core_clerk.browser_109cfd_6.33.0.js",
+      "sha256": "a8229d67286e65c8c2aac90fdd119aae874052b087d5f5215f285360ce676a1c",
+      "bytes": 25026
+    }
+  ]
+}
