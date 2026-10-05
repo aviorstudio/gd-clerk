@@ -1,0 +1,12 @@
+; Engine configuration file.
+config_version=5
+
+[application]
+
+config/name="gd-clerk"
+config/features=PackedStringArray("4.7")
+config/description="Web-only Clerk email-code addon."
+
+[editor_plugins]
+
+enabled=PackedStringArray("res://addons/@aviorstudio_gd-clerk/plugin.cfg")

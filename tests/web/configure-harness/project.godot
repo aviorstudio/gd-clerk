@@ -1,0 +1,8 @@
+[application]
+config/name="GdClerkConfigureHarness"
+run/main_scene="res://boot.tscn"
+config/features=PackedStringArray("4.7", "GL Compatibility")
+
+[editor_plugins]
+
+enabled=PackedStringArray("res://addons/@aviorstudio_gd-clerk/plugin.cfg")

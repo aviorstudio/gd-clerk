@@ -1,0 +1,10 @@
+node_modules/
+dist/
+.godot/
+*.translation
+.import/
+export.cfg
+export_presets.cfg
+!tests/web/origin-harness/export_presets.cfg
+!tests/web/configure-harness/export_presets.cfg
+!tests/web/revoke-harness/export_presets.cfg
