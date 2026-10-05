@@ -1,0 +1,49 @@
+name: gdam-publish
+
+# Publishes an existing GitHub release's flat asset to GDAM. Use it when the
+# release workflow created the GitHub release but its GDAM step failed: that
+# workflow refuses to replace a release, so it cannot be re-run for the same tag.
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing release tag to publish to GDAM
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  publish:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          fetch-depth: 0
+      - name: Verify the released GDAM asset
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_TAG: ${{ inputs.tag }}
+        run: |
+          set -euo pipefail
+          RELEASE_COMMIT="$(git rev-list -n 1 "$RELEASE_TAG")" node scripts/check-release-identity.mjs
+          mkdir -p dist
+          gh release download "$RELEASE_TAG" --dir dist --pattern '@aviorstudio_gd-clerk.gdam.zip'
+          python3 - <<'EOF'
+          import zipfile
+          names = zipfile.ZipFile("dist/@aviorstudio_gd-clerk.gdam.zip").namelist()
+          assert "plugin.cfg" in names and not any(n.startswith("addons/") for n in names), "not a flat GDAM asset"
+          EOF
+      - name: Install checksummed GDAM 0.0.8
+        uses: aviorstudio/gdam-actions/install@d735444eb470194585def44521d5d91df2260e63 # v0.0.2
+        with:
+          version: v0.0.8
+      - name: Publish to GDAM
+        uses: aviorstudio/gdam-actions/publish@d735444eb470194585def44521d5d91df2260e63 # v0.0.2
+        with:
+          tag: ${{ inputs.tag }}
+          asset: "@aviorstudio_gd-clerk.gdam.zip"
+          secret-key: ${{ secrets.GDAM_SECRET_KEY }}
