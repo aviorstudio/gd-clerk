@@ -23,6 +23,8 @@
   // Unlisted codes stay UNKNOWN. Do not add a code that was not observed.
   var ERROR_CODE_MAP = {
     form_code_incorrect: "INVALID_CODE",
+    form_identifier_not_found: "ACCOUNT_NOT_FOUND",
+    form_param_format_invalid: "INVALID_EMAIL",
     verification_expired: "EXPIRED_CODE",
     too_many_requests: "RATE_LIMIT",
     signup_rate_limit_exceeded: "RATE_LIMIT",
@@ -37,6 +39,8 @@
     AUTHENTICATED: "Signed in.",
     NEEDS_MORE_STEPS: "Additional verification is required and is not supported.",
     INVALID_CODE: "The verification code is invalid.",
+    ACCOUNT_NOT_FOUND: "No account uses that email address.",
+    INVALID_EMAIL: "The email address is not valid.",
     EXPIRED_CODE: "The verification code has expired.",
     RESEND_COOLDOWN: "Wait before requesting another code.",
     RATE_LIMIT: "Too many requests. Try again later.",
@@ -274,6 +278,8 @@
       for (var i = 0; i < codes.length; i++) {
         var mapped = ERROR_CODE_MAP[codes[i]];
         if (mapped === "INVALID_CODE") return result("ERROR", "INVALID_CODE", MESSAGES.INVALID_CODE);
+        if (mapped === "ACCOUNT_NOT_FOUND") return result("ERROR", "ACCOUNT_NOT_FOUND", MESSAGES.ACCOUNT_NOT_FOUND);
+        if (mapped === "INVALID_EMAIL") return result("ERROR", "INVALID_EMAIL", MESSAGES.INVALID_EMAIL);
         if (mapped === "EXPIRED_CODE") return result("ERROR", "EXPIRED_CODE", MESSAGES.EXPIRED_CODE);
         if (mapped === "RATE_LIMIT") return result("ERROR", "RATE_LIMIT", MESSAGES.RATE_LIMIT);
         if (mapped === "UNSUPPORTED_CHALLENGE") return result("NEEDS_MORE_STEPS", "UNSUPPORTED_CHALLENGE", MESSAGES.NEEDS_MORE_STEPS);
