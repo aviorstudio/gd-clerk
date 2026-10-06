@@ -53,7 +53,7 @@ export function verifyZip(zipPath) {
   }
   const manifestEntry = entries.find((entry) => entry.name === "PACKAGE_MANIFEST.json");
   const manifest = JSON.parse(manifestEntry.data.toString("utf8"));
-  if (manifest.closed !== true || manifest.zip_entries !== 34 || manifest.plugin_version !== "0.1.0") {
+  if (manifest.closed !== true || manifest.zip_entries !== 34 || manifest.plugin_version !== "0.1.1") {
     throw new Error("package manifest is not closed");
   }
   if (!Array.isArray(manifest.files) || manifest.files.length !== 33) {
