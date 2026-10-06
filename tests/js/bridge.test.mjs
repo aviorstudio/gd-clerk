@@ -392,7 +392,7 @@ test("unknown identifier does not transfer or auto-create", async () => {
   await call(h.bridge, "configure", config);
   const result = await call(h.bridge, "beginEmailCode", "person@example.com", "SIGN_IN");
   assert.equal(result.state, "ERROR");
-  assert.equal(result.error_key, "UNKNOWN");
+  assert.equal(result.error_key, "ACCOUNT_NOT_FOUND");
   assert.equal(result.message.includes("person@example.com"), false);
   assert.equal(h.calls.some((item) => item[0] === "signUp.create"), false);
 });
@@ -942,4 +942,17 @@ test("bridge loads the Clerk bundle from beside its own script", () => {
     "https://game.example/releases/abc/gd-clerk/clerk.browser.js",
   );
   assert.equal(resolve({ src: "https://other.example/evil.js" }), "gd-clerk/clerk.browser.js");
+});
+
+test("sign-in names an unknown account and a malformed email instead of failing generically", async () => {
+  for (const [code, key] of [["form_identifier_not_found", "ACCOUNT_NOT_FOUND"], ["form_param_format_invalid", "INVALID_EMAIL"]]) {
+    const h = harness({ mutate({ signIn }) {
+      signIn.create = async () => { const err = new Error("422"); err.status = 422; err.errors = [{ code, longMessage: "person@example.com" }]; throw err; };
+    } });
+    await call(h.bridge, "configure", config);
+    const result = await call(h.bridge, "beginEmailCode", "person@example.com", "SIGN_IN");
+    assert.equal(result.state, "ERROR");
+    assert.equal(result.error_key, key);
+    assert.equal(JSON.stringify(result).includes("person@"), false);
+  }
 });

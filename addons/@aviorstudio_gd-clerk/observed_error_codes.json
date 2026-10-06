@@ -2,10 +2,13 @@
   "pinned_sdk": "@clerk/clerk-js@6.33.0",
   "sources": [
     "https://clerk.com/docs/guides/development/errors/frontend-api",
-    "packages/clerk-js captcha_script_failed_to_load and captcha_unavailable in pinned 6.33.0 browser bundle"
+    "packages/clerk-js captcha_script_failed_to_load and captcha_unavailable in pinned 6.33.0 browser bundle",
+    "form_identifier_not_found and form_param_format_invalid returned by POST /v1/client/sign_ins on a production instance, 2026-10-05"
   ],
   "codes": {
     "form_code_incorrect": "INVALID_CODE",
+    "form_identifier_not_found": "ACCOUNT_NOT_FOUND",
+    "form_param_format_invalid": "INVALID_EMAIL",
     "verification_expired": "EXPIRED_CODE",
     "too_many_requests": "RATE_LIMIT",
     "signup_rate_limit_exceeded": "RATE_LIMIT",
