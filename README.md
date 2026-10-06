@@ -1,10 +1,10 @@
-<!-- Generated from private documentation source. Do not edit directly. Source SHA256: 184361f8de82404041cb71796d6ee4b4d80f43fcef473451c0fb0c3044bb53d2 -->
+<!-- Generated from private documentation source. Do not edit directly. Source SHA256: 031651fcf9ffbc46b1d695788e6f1f69721abad2148d7f21cbded41b1ab7a085 -->
 
 # gd-clerk
 
 Godot 4.7 addon for web email-code sign-in and sign-up through the pinned official `@clerk/clerk-js@6.33.0` browser bundle. Plugin version `0.1.0`.
 
-Install by copying `addons/@aviorstudio_gd-clerk/` into a Godot project, or unzip `dist/@aviorstudio_gd-clerk.zip` at the project root. The ZIP has 34 intentional entries: the 33 addon files in `scripts/package-allowlist.json`, including Godot `.uid` files and the pinned Clerk same-directory bundle, plus `PACKAGE_MANIFEST.json`. Enable the `GdClerk` plugin to add the optional `GdClerk` autoload and the web export injector. The script can also be instanced without the plugin.
+Install with GDAM (`"@aviorstudio/gd-clerk": {"tag": "v0.1.0"}` in `gdam.json`), by copying `addons/@aviorstudio_gd-clerk/` into a Godot project, or by unzipping a release's `@aviorstudio_gd-clerk.zip` at the project root. The ZIP has 34 intentional entries: the 33 addon files in `scripts/package-allowlist.json`, including Godot `.uid` files and the pinned Clerk same-directory bundle, plus `PACKAGE_MANIFEST.json`. Enable the `GdClerk` plugin to add the optional `GdClerk` autoload and the web export injector. The script can also be instanced without the plugin.
 
 ## Platform
 
@@ -34,9 +34,9 @@ Vanilla `clerk.client.signIn` and `clerk.client.signUp` are the documented legac
 
 The browser files under `javascript/clerk/` are the exact `6.33.0` `clerk.browser.js` build and its same-directory chunks. They are not loaded from a floating CDN, and the export HTML does not parse that bundle before `configure`. After the project-supplied publishable key passes the existing checks, the bridge inserts the same-origin file and calls `load()` on the instance the bundle creates. `npm ci` plus `node scripts/vendor-clerk.mjs --check` verifies the lockfile integrity.
 
-## Not released
+## Releases
 
-There is no production release. This addon is game-agnostic. A consuming project may test the candidate ZIP in an isolated integration. That ZIP is not a released pin. Live email-code proof belongs to the consuming project. This repository does not run that proof, does not read another repository's evidence, and does not accept a committed acceptance file. The browser fixture mocks the Smart challenge and does not claim interactive challenge completion. See `docs/CONSUMER.md`, `docs/CAPTCHA.md`, `docs/CSP.md`, and `docs/FAILURE_RECOVERY.md`.
+Releases are cut by hand: the `release` workflow runs only on `workflow_dispatch` from `main` and re-runs every test, scan and web export regression against that commit before it publishes. Each release attaches the project-root ZIP, its checksum, and `@aviorstudio_gd-clerk.gdam.zip` (the same 33 addon files with `plugin.cfg` at the archive root), then publishes that flat ZIP to the GDAM registry. The bridge loads the Clerk bundle from beside its own script, so an export served from a subdirectory works. This addon is game-agnostic. Live email-code proof belongs to the consuming project, which runs it against its own Clerk instance after installing a release. The browser fixture mocks the Smart challenge and does not claim interactive challenge completion. See `docs/CONSUMER.md`, `docs/CAPTCHA.md`, `docs/CSP.md`, and `docs/FAILURE_RECOVERY.md`.
 
 ### Inspector configuration
 
