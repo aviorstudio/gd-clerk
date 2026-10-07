@@ -19,13 +19,13 @@ concurrency:
 jobs:
   guard:
     if: github.ref != 'refs/heads/main'
-    runs-on: ubuntu-latest
+    runs-on: blacksmith-2vcpu-ubuntu-2404
     steps:
       - run: echo "release only runs from main" && exit 1
 
   test:
     if: github.ref == 'refs/heads/main'
-    runs-on: ubuntu-latest
+    runs-on: blacksmith-2vcpu-ubuntu-2404
     timeout-minutes: 40
     outputs:
       commit: ${{ steps.identity.outputs.commit }}
@@ -132,7 +132,7 @@ jobs:
   publish:
     needs: test
     if: needs.test.result == 'success' && github.ref == 'refs/heads/main'
-    runs-on: ubuntu-latest
+    runs-on: blacksmith-2vcpu-ubuntu-2404
     timeout-minutes: 15
     permissions:
       contents: write
