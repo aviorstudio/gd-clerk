@@ -20,6 +20,7 @@ jobs:
   guard:
     if: github.ref != 'refs/heads/main'
     runs-on: blacksmith-2vcpu-ubuntu-2404
+    timeout-minutes: 10
     steps:
       - run: echo "release only runs from main" && exit 1
 
@@ -49,9 +50,11 @@ jobs:
           test "$commit" = "$origin"
           RELEASE_REF="$GITHUB_REF" RELEASE_HEAD="$commit" RELEASE_ORIGIN_MAIN="$origin" node scripts/release-guard.mjs --main
           RELEASE_COMMIT="$commit" node scripts/check-release-identity.mjs
-          echo "commit=$commit" >> "$GITHUB_OUTPUT"
-          echo "tag=$RELEASE_TAG" >> "$GITHUB_OUTPUT"
-          echo "version=${RELEASE_TAG#v}" >> "$GITHUB_OUTPUT"
+          {
+            echo "commit=$commit"
+            echo "tag=$RELEASE_TAG"
+            echo "version=${RELEASE_TAG#v}"
+          } >> "$GITHUB_OUTPUT"
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
         with:
           node-version: "22.20.0"
