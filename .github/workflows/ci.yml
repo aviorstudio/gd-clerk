@@ -24,9 +24,7 @@ jobs:
           node-version: "22.20.0"
           cache: npm
       - run: npm ci
-      - run: node scripts/vendor-clerk.mjs --check
-      - run: node scripts/scan.mjs
-      - run: node scripts/workflow-policy.mjs
+      - run: make lint
       - run: npm test
       - run: bash scripts/install-godot.sh /usr/local/bin/godot
       - name: Godot headless tests
