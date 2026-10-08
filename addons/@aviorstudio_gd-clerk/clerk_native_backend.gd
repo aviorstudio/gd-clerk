@@ -384,6 +384,10 @@ func _prepare_code(relay: RefCounted, generation: int) -> void:
 		if not _flow_alive(generation):
 			return
 		if not reply.error.is_empty():
+			if int(_flow.get("sent_at", 0)) == 0:
+				# The first prepare failed: no code is pending, so a retried
+				# begin must start over. A failed resend keeps the attempt.
+				_flow = {}
 			_deliver(relay, reply.error)
 			return
 		_flow["sent_at"] = Time.get_ticks_msec()

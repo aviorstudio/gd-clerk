@@ -16,6 +16,7 @@ verification code the addon sends, so the Godot test needs no control channel:
   mfa@example.test         attempt succeeds but reports needs_second_factor
   locked@example.test      user_locked
   slow@example.test        sign-in creation sleeps SLOW_SECONDS before answering
+  flaky@example.test       the first prepare_first_factor of the run answers 503; later ones succeed
   new@example.test         sign-up happy path
   exists@example.test      sign-up form_identifier_exists
   incomplete@example.test  sign-up verifies but stays missing_requirements
@@ -58,6 +59,7 @@ STATE = {
     "next_user": 1,
     "next_attempt": 1,
     "mints": 0,
+    "flaky_failed": False,
 }
 
 
@@ -294,18 +296,23 @@ class Handler(BaseHTTPRequestHandler):
             "created_session_id": None,
             "email": email,
             "prepared": False,
+            "prepare_failures": 1 if email == "flaky@example.test" and not STATE["flaky_failed"] else 0,
         }
         STATE["next_attempt"] += 1
         client["sign_in"] = attempt
         return 200, {"response": self._public_sign_in(attempt), "client": public_client(client)}
 
     def _public_sign_in(self, attempt: dict) -> dict:
-        return {k: v for k, v in attempt.items() if k not in ("email", "prepared")}
+        return {k: v for k, v in attempt.items() if k not in ("email", "prepared", "prepare_failures")}
 
     def _sign_in_prepare(self, client: dict, sign_in_id: str, form: dict):
         attempt = client.get("sign_in")
         if not attempt or attempt["id"] != sign_in_id:
             return error_body("resource_not_found", 404)
+        if attempt["prepare_failures"] > 0:
+            attempt["prepare_failures"] -= 1
+            STATE["flaky_failed"] = True
+            return error_body("internal_clerk_error", 503)
         if form.get("strategy") != "email_code" or form.get("email_address_id") != attempt["supported_first_factors"][0]["email_address_id"]:
             return error_body("form_param_missing", 422)
         attempt["prepared"] = True
