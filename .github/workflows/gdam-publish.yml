@@ -3,6 +3,8 @@ name: gdam-publish
 # Publishes an existing GitHub release's flat asset to GDAM. Use it when the
 # release workflow created the GitHub release but its GDAM step failed: that
 # workflow refuses to replace a release, so it cannot be re-run for the same tag.
+# The registry only accepts the commit this run checked out, so the tag must
+# point at main's head when the workflow is dispatched.
 on:
   workflow_dispatch:
     inputs:
@@ -19,6 +21,9 @@ jobs:
     if: github.ref == 'refs/heads/main'
     runs-on: blacksmith-2vcpu-ubuntu-2404
     timeout-minutes: 10
+    permissions:
+      contents: read
+      id-token: write
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
@@ -37,15 +42,9 @@ jobs:
           names = zipfile.ZipFile("dist/@aviorstudio_gd-clerk.gdam.zip").namelist()
           assert "plugin.cfg" in names and not any(n.startswith("addons/") for n in names), "not a flat GDAM asset"
           EOF
-      - name: Install checksummed GDAM 0.0.8
-        uses: aviorstudio/gdam-actions/install@699727af05ff8da8f6816cc5c14a16b2b9470219 # v0.2.0
-        with:
-          version: v0.0.8
-          archive-sha256: 7ef2a325ad1416ce850a332f4380b1b290bd7a56e2a20f544536386cf64abb92
-
+      # Trusted publishing: the job's OIDC token is the registry credential.
       - name: Publish to GDAM
-        uses: aviorstudio/gdam-actions/publish@699727af05ff8da8f6816cc5c14a16b2b9470219 # v0.2.0
+        uses: aviorstudio/gdam-actions/publish@3d9591c34711bb408302866d1e213409c2bdc59a # v0.3.0
         with:
           tag: ${{ inputs.tag }}
           asset: "@aviorstudio_gd-clerk.gdam.zip"
-          secret-key: ${{ secrets.GDAM_SECRET_KEY }}
