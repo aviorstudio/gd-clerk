@@ -48,6 +48,9 @@ jobs:
           commit="$(git rev-parse HEAD)"
           origin="$(git rev-parse origin/main)"
           test "$commit" = "$origin"
+          # A push between dispatch and checkout would test a newer commit
+          # than the one the run (and its OIDC token) is bound to.
+          test "$commit" = "$GITHUB_SHA"
           RELEASE_REF="$GITHUB_REF" RELEASE_HEAD="$commit" RELEASE_ORIGIN_MAIN="$origin" node scripts/release-guard.mjs --main
           RELEASE_COMMIT="$commit" node scripts/check-release-identity.mjs
           {

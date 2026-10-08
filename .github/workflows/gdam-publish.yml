@@ -3,8 +3,9 @@ name: gdam-publish
 # Publishes an existing GitHub release's flat asset to GDAM. Use it when the
 # release workflow created the GitHub release but its GDAM step failed: that
 # workflow refuses to replace a release, so it cannot be re-run for the same tag.
-# The registry only accepts the commit this run checked out, so the tag must
-# point at main's head when the workflow is dispatched.
+# The registry only accepts the commit this run checked out, so dispatch it
+# either from main while the tag is still main's head, or from the tag itself
+# (`--ref <tag>`), which runs this file as it exists at that tag.
 on:
   workflow_dispatch:
     inputs:
@@ -18,7 +19,7 @@ permissions:
 
 jobs:
   publish:
-    if: github.ref == 'refs/heads/main'
+    if: github.ref == 'refs/heads/main' || github.ref == format('refs/tags/{0}', inputs.tag)
     runs-on: blacksmith-2vcpu-ubuntu-2404
     timeout-minutes: 10
     permissions:
@@ -34,7 +35,11 @@ jobs:
           RELEASE_TAG: ${{ inputs.tag }}
         run: |
           set -euo pipefail
-          RELEASE_COMMIT="$(git rev-list -n 1 "$RELEASE_TAG")" node scripts/check-release-identity.mjs
+          commit="$(git rev-list -n 1 "$RELEASE_TAG")"
+          # The registry binds the publication to the commit this run checked
+          # out; fail here with a readable reason rather than at the registry.
+          test "$commit" = "$GITHUB_SHA"
+          RELEASE_COMMIT="$commit" node scripts/check-release-identity.mjs
           mkdir -p dist
           gh release download "$RELEASE_TAG" --dir dist --pattern '@aviorstudio_gd-clerk.gdam.zip'
           python3 - <<'EOF'
