@@ -48,6 +48,9 @@ jobs:
           commit="$(git rev-parse HEAD)"
           origin="$(git rev-parse origin/main)"
           test "$commit" = "$origin"
+          # A push between dispatch and checkout would test a newer commit
+          # than the one the run (and its OIDC token) is bound to.
+          test "$commit" = "$GITHUB_SHA"
           RELEASE_REF="$GITHUB_REF" RELEASE_HEAD="$commit" RELEASE_ORIGIN_MAIN="$origin" node scripts/release-guard.mjs --main
           RELEASE_COMMIT="$commit" node scripts/check-release-identity.mjs
           {
@@ -143,6 +146,7 @@ jobs:
     timeout-minutes: 15
     permissions:
       contents: write
+      id-token: write
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
@@ -192,15 +196,9 @@ jobs:
             exit 1
           fi
           gh release create "$RELEASE_TAG" dist/@aviorstudio_gd-clerk.zip dist/@aviorstudio_gd-clerk.zip.sha256 dist/@aviorstudio_gd-clerk.gdam.zip --target "$RELEASE_COMMIT" --title "gd-clerk $RELEASE_TAG" --notes-file dist/RELEASE_NOTES.md
-      - name: Install checksummed GDAM 0.0.8
-        uses: aviorstudio/gdam-actions/install@699727af05ff8da8f6816cc5c14a16b2b9470219 # v0.2.0
-        with:
-          version: v0.0.8
-          archive-sha256: 7ef2a325ad1416ce850a332f4380b1b290bd7a56e2a20f544536386cf64abb92
-
+      # Trusted publishing: the job's OIDC token is the registry credential.
       - name: Publish to GDAM
-        uses: aviorstudio/gdam-actions/publish@699727af05ff8da8f6816cc5c14a16b2b9470219 # v0.2.0
+        uses: aviorstudio/gdam-actions/publish@3d9591c34711bb408302866d1e213409c2bdc59a # v0.3.0
         with:
           tag: ${{ needs.test.outputs.tag }}
           asset: "@aviorstudio_gd-clerk.gdam.zip"
-          secret-key: ${{ secrets.GDAM_SECRET_KEY }}
