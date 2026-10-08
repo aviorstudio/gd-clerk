@@ -81,6 +81,7 @@ test("GDAM publication is trusted publishing with no registry secret", () => {
     mutate("gdam-publish.yml", "      id-token: write\n", "", /id-token: write/);
     mutate("release.yml", "permissions:\n  contents: read\n", "permissions:\n  contents: read\n  id-token: write\n", /only to the publishing jobs/);
     mutate("gdam-publish.yml", "permissions:\n  contents: read\n", "permissions:\n  contents: read\n  id-token: write\n", /only to the publishing jobs/);
+    mutate("release.yml", "    timeout-minutes: 40\n", "    timeout-minutes: 40\n    permissions:\n      id-token: write\n", /only to the publishing jobs/);
     mutate("release.yml", "      id-token: write\n", "      id-token: write\n      GDAM_SECRET_KEY: x\n", /secret key/);
     mutate("gdam-publish.yml", "      - name: Publish to GDAM\n", "      - uses: aviorstudio/gdam-actions/install@3d9591c34711bb408302866d1e213409c2bdc59a\n      - name: Publish to GDAM\n", /installs the GDAM CLI/);
     mutate("gdam-publish.yml", "gdam-actions/publish@3d9591c34711bb408302866d1e213409c2bdc59a", "gdam-actions/publish@v0.3.0", /same full-SHA/);
