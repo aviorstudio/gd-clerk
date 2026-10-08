@@ -17,5 +17,29 @@
     "captcha_invalid": "UNKNOWN",
     "captcha_unavailable": "CONFIG",
     "captcha_script_failed_to_load": "CONFIG"
-  }
+  },
+  "native_sources": [
+    "Clerk Frontend API OpenAPI 2026-05-12 (clerk/openapi-specs fapi/2026-05-12.yml) error responses",
+    "clerk-ios ClerkKit and clerk-android native client error handling, read 2026-10-07",
+    "https://clerk.com/docs/guides/development/errors/frontend-api"
+  ],
+  "native_codes": {
+    "verification_failed": "UNKNOWN",
+    "verification_missing": "UNKNOWN",
+    "verification_code_too_many_attempts": "RATE_LIMIT",
+    "verification_code_too_many_requests": "RATE_LIMIT",
+    "form_identifier_exists": "UNKNOWN",
+    "session_exists": "UNKNOWN",
+    "user_locked": "UNKNOWN",
+    "native_api_disabled": "CONFIG",
+    "authentication_invalid": "SESSION_EXPIRED",
+    "resource_not_found": "SESSION_EXPIRED",
+    "session_not_found": "SESSION_EXPIRED",
+    "session_expired": "SESSION_EXPIRED",
+    "session_revoked": "SESSION_EXPIRED",
+    "session_removed": "SESSION_EXPIRED",
+    "session_abandoned": "SESSION_EXPIRED",
+    "session_ended": "SESSION_EXPIRED"
+  },
+  "native_note": "native_codes extend codes for the native Frontend API backend only; the web bridge keeps codes. Any FAPI code that starts with session_ is treated as SESSION_EXPIRED natively."
 }

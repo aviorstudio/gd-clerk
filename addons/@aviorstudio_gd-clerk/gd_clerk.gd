@@ -3,6 +3,7 @@ extends Node
 signal session_changed(state: SessionState)
 
 const _MAX_LIVE_RELAYS := 8
+const _NativeBackend := preload("res://addons/@aviorstudio_gd-clerk/clerk_native_backend.gd")
 
 var _next_id: int = 1
 var _generation: int = 1
@@ -15,10 +16,15 @@ var _revoke_session: Callable = Callable()
 var _revoke_relay: RefCounted = null
 var _revoke_js: Variant = null
 var _revoke_ack_attempt: int = 0
+## Native (non-web) Frontend API backend. Created on first use off the web.
+var _native: RefCounted = null
 
 func configure(config: ClerkConfig, done: Callable) -> void:
 	if not _is_web():
-		_finish_now(done, ClerkResult.unavailable())
+		_revoke_session = config.revoke_session if config != null else Callable()
+		var relay: Variant = _native_relay(done, false, false)
+		if relay != null:
+			_native_backend().configure(config, relay)
 		return
 	var origin := _page_origin()
 	var problem := ClerkPolicy.validate_config(config, origin)
@@ -39,15 +45,17 @@ func configure(config: ClerkConfig, done: Callable) -> void:
 	bridge.call("configure", JSON.stringify(config.to_dictionary()), cb)
 
 func begin_email_code(email: String, mode: int, done: Callable) -> void:
-	if not _is_web():
-		_finish_now(done, ClerkResult.unavailable())
-		return
 	if not ClerkPolicy.validate_email(email):
 		_finish_now(done, ClerkResult.error("UNKNOWN", "The email address is not valid."))
 		return
 	var mode_name := "SIGN_IN" if mode == 0 else "SIGN_UP" if mode == 1 else ""
 	if mode_name == "":
 		_finish_now(done, ClerkResult.error("CONFIG", "Configuration is invalid."))
+		return
+	if not _is_web():
+		var relay: Variant = _native_relay(done, false, true)
+		if relay != null:
+			_native_backend().begin_email_code(email.strip_edges(), mode, relay)
 		return
 	var bridge := _bridge()
 	if bridge == null:
@@ -60,11 +68,13 @@ func begin_email_code(email: String, mode: int, done: Callable) -> void:
 	bridge.call("beginEmailCode", email, mode_name, cb)
 
 func complete_email_code(code: String, done: Callable) -> void:
-	if not _is_web():
-		_finish_now(done, ClerkResult.unavailable())
-		return
 	if not ClerkPolicy.validate_code(code):
 		_finish_now(done, ClerkResult.error("INVALID_CODE", "The verification code is invalid."))
+		return
+	if not _is_web():
+		var relay: Variant = _native_relay(done, false, true)
+		if relay != null:
+			_native_backend().complete_email_code(code, relay)
 		return
 	var bridge := _bridge()
 	if bridge == null:
@@ -78,7 +88,9 @@ func complete_email_code(code: String, done: Callable) -> void:
 
 func resend_email_code(done: Callable) -> void:
 	if not _is_web():
-		_finish_now(done, ClerkResult.unavailable())
+		var relay: Variant = _native_relay(done, false, true)
+		if relay != null:
+			_native_backend().resend_email_code(relay)
 		return
 	var bridge := _bridge()
 	if bridge == null:
@@ -92,6 +104,9 @@ func resend_email_code(done: Callable) -> void:
 
 func cancel_email_code() -> void:
 	_generation += 1
+	if not _is_web() and _native != null:
+		# Abort first so a consumer that restarts from the CANCELLED callback is not FLOW_BUSY.
+		_native.cancel_email_code()
 	var stale: Array = []
 	for relay in _relays:
 		if relay.cancellable and not relay.settled and relay.generation != _generation:
@@ -112,7 +127,9 @@ func cancel_email_code() -> void:
 
 func get_session_token(min_validity_seconds: int, done: Callable) -> void:
 	if not _is_web():
-		_finish_now(done, ClerkResult.unavailable())
+		var relay: Variant = _native_relay(done, true, false)
+		if relay != null:
+			_native_backend().get_session_token(min_validity_seconds, relay)
 		return
 	var bridge := _bridge()
 	if bridge == null:
@@ -126,7 +143,9 @@ func get_session_token(min_validity_seconds: int, done: Callable) -> void:
 
 func sign_out(done: Callable) -> void:
 	if not _is_web():
-		_finish_now(done, ClerkResult.unavailable())
+		var relay: Variant = _native_relay(done, false, false)
+		if relay != null:
+			_native_backend().sign_out(relay)
 		return
 	var bridge := _bridge()
 	if bridge == null:
@@ -141,6 +160,16 @@ func sign_out(done: Callable) -> void:
 
 func _is_web() -> bool:
 	return OS.has_feature("web")
+
+func _native_backend() -> RefCounted:
+	if _native == null:
+		_native = _NativeBackend.new()
+		_native.owner = self
+	return _native
+
+func _native_relay(done: Callable, allow_token: bool, cancellable: bool) -> Variant:
+	var id := _track(done)
+	return _retain_relay(id, done, allow_token, cancellable)
 
 func _js() -> Object:
 	return Engine.get_singleton("JavaScriptBridge")
@@ -258,6 +287,9 @@ func _notification(what: int) -> void:
 		_session_relay.settled = true
 		_session_relay.owner = null
 		_session_relay = null
+	if _native != null:
+		_native.owner = null
+		_native = null
 
 func _ensure_listener() -> void:
 	if _listener_ready:
@@ -313,6 +345,13 @@ class _Relay:
 	var js_callback: Variant = null
 
 	func on_js(args: Array) -> void:
+		var raw := ""
+		if not args.is_empty():
+			raw = str(args[0])
+		deliver(raw)
+
+	## Delivers one serialized result payload from either backend.
+	func deliver(raw: String) -> void:
 		if settled:
 			return
 		js_callback = null
@@ -325,9 +364,6 @@ class _Relay:
 		if deliver_cancel:
 			result = ClerkResult.error("CANCELLED", "The request was cancelled.")
 		else:
-			var raw := ""
-			if not args.is_empty():
-				raw = str(args[0])
 			result = ClerkResult.from_json(raw, allow_token)
 		var target: Node = owner
 		target._release_relay(self)
