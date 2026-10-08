@@ -9,10 +9,10 @@ const dest = join(root, "addons/@aviorstudio_gd-clerk/javascript/clerk");
 const pkgRoot = join(root, "node_modules/@clerk/clerk-js");
 const lock = JSON.parse(readFileSync(join(root, "package-lock.json"), "utf8"));
 const locked = lock.packages["node_modules/@clerk/clerk-js"];
-if (!locked || locked.version !== "6.33.0") {
-  throw new Error("package-lock does not pin @clerk/clerk-js@6.33.0");
+if (!locked || locked.version !== "6.38.1") {
+  throw new Error("package-lock does not pin @clerk/clerk-js@6.38.1");
 }
-const expectedIntegrity = "sha512-cguJDbEOHNlNknh2E2pkqcQkuqhALZqGU76v91W9cP38tWYl+fxh374PA1XbcAeSUl6r0sa/OJBuGjuJNEuC2A==";
+const expectedIntegrity = "sha512-VtkShUFdbnf0CXv3AuFrsH9VroOINnEXx08obmFNnSDQ2AG0CYPpP4sgS52cHI4Ai/PMgH3LUhDlInTrOZnGEg==";
 if (locked.integrity !== expectedIntegrity) {
   throw new Error("lockfile integrity does not match the pinned registry integrity");
 }
@@ -31,7 +31,7 @@ const files = names.map((name) => {
 });
 const manifest = {
   package: "@clerk/clerk-js",
-  version: "6.33.0",
+  version: "6.38.1",
   integrity: locked.integrity,
   files,
 };

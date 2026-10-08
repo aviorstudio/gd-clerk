@@ -15,7 +15,7 @@
     "scan": "node scripts/scan.mjs"
   },
   "dependencies": {
-    "@clerk/clerk-js": "6.33.0"
+    "@clerk/clerk-js": "6.38.1"
   },
   "devDependencies": {
     "playwright": "1.63.0"

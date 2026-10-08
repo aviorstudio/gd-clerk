@@ -101,7 +101,7 @@ function installMock({ key, token }) {
     publishableKey: key,
     proxyUrl: "",
     domain: "",
-    version: "6.33.0",
+    version: "6.38.1",
     isSignedIn: false,
     session: null,
     user: null,

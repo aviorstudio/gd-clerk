@@ -1,10 +1,12 @@
-<!-- Generated from private documentation source. Do not edit directly. Source SHA256: 031651fcf9ffbc46b1d695788e6f1f69721abad2148d7f21cbded41b1ab7a085 -->
+<!-- Generated from private documentation source. Do not edit directly. Source SHA256: 3ce93acb87bfeb10993058640b45b825d697244d318d2147345aa5aa169d106f -->
 
 # gd-clerk
 
-Godot 4.7 addon for web email-code sign-in and sign-up through the pinned official `@clerk/clerk-js@6.33.0` browser bundle. Plugin version `0.1.0`.
+Godot 4.7 addon for web email-code sign-in and sign-up through the pinned official `@clerk/clerk-js@6.38.1` browser bundle. Plugin version `0.1.1`.
 
-Install with GDAM (`"@aviorstudio/gd-clerk": {"tag": "v0.1.0"}` in `gdam.json`), by copying `addons/@aviorstudio_gd-clerk/` into a Godot project, or by unzipping a release's `@aviorstudio_gd-clerk.zip` at the project root. The ZIP has 34 intentional entries: the 33 addon files in `scripts/package-allowlist.json`, including Godot `.uid` files and the pinned Clerk same-directory bundle, plus `PACKAGE_MANIFEST.json`. Enable the `GdClerk` plugin to add the optional `GdClerk` autoload and the web export injector. The script can also be instanced without the plugin.
+The checked-in source uses this SDK; existing published releases retain their original packaged SDK.
+
+Install with GDAM (`"@aviorstudio/gd-clerk": {"tag": "v0.1.1"}` in `gdam.json`), by copying `addons/@aviorstudio_gd-clerk/` into a Godot project, or by unzipping a release's `@aviorstudio_gd-clerk.zip` at the project root. The ZIP has 34 intentional entries: the 33 addon files in `scripts/package-allowlist.json`, including Godot `.uid` files and the pinned Clerk same-directory bundle, plus `PACKAGE_MANIFEST.json`. Enable the `GdClerk` plugin to add the optional `GdClerk` autoload and the web export injector. The script can also be instanced without the plugin.
 
 ## Platform
 
@@ -32,7 +34,7 @@ Unexpected MFA, device trust, protect checks, session tasks, and missing sign-up
 
 Vanilla `clerk.client.signIn` and `clerk.client.signUp` are the documented legacy resources. `SignInFuture` and `SignUpFuture` exist on the pinned types only as `__internal_future`, which framework hooks use. This addon does not call those methods, `emailCode`, `verifications`, or `finalize`.
 
-The browser files under `javascript/clerk/` are the exact `6.33.0` `clerk.browser.js` build and its same-directory chunks. They are not loaded from a floating CDN, and the export HTML does not parse that bundle before `configure`. After the project-supplied publishable key passes the existing checks, the bridge inserts the same-origin file and calls `load()` on the instance the bundle creates. `npm ci` plus `node scripts/vendor-clerk.mjs --check` verifies the lockfile integrity.
+The browser files under `javascript/clerk/` are the exact `6.38.1` `clerk.browser.js` build and its same-directory chunks. They are not loaded from a floating CDN, and the export HTML does not parse that bundle before `configure`. After the project-supplied publishable key passes the existing checks, the bridge inserts the same-origin file and calls `load()` on the instance the bundle creates. `npm ci` plus `node scripts/vendor-clerk.mjs --check` verifies the lockfile integrity.
 
 ## Releases
 
