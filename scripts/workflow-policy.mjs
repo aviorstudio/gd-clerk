@@ -31,6 +31,21 @@ export function assertWorkflows(root) {
     throw new Error("publish job must use only GITHUB_TOKEN contents: write");
   }
   if (!/secrets\.GITHUB_TOKEN/.test(publish)) throw new Error("publish job must use GITHUB_TOKEN");
+  // GDAM publication is trusted publishing: the job's OIDC token is the only
+  // credential, so the job must mint one and no registry secret may remain.
+  if (!/id-token: write/.test(publish)) throw new Error("publish job must grant id-token: write for GDAM trusted publishing");
+  const gdamPublish = readFileSync(join(root, ".github/workflows/gdam-publish.yml"), "utf8");
+  if (!/id-token: write/.test(jobBlock(gdamPublish, "publish"))) {
+    throw new Error("gdam-publish job must grant id-token: write for GDAM trusted publishing");
+  }
+  for (const [name, text] of [["release", release], ["gdam-publish", gdamPublish], ["ci", ci]]) {
+    if (/GDAM_SECRET_KEY|secret-key:/.test(text)) throw new Error(`${name} workflow must not use a GDAM secret key`);
+    if (/gdam-actions\/install@/.test(text)) throw new Error(`${name} workflow installs the GDAM CLI, which publishing no longer needs`);
+  }
+  const pins = new Set([...release.matchAll(/gdam-actions\/publish@([0-9a-f]{40})/g), ...gdamPublish.matchAll(/gdam-actions\/publish@([0-9a-f]{40})/g)].map((m) => m[1]));
+  if (pins.size !== 1 || (release.match(/gdam-actions\/publish@/g) ?? []).length !== 1 || (gdamPublish.match(/gdam-actions\/publish@/g) ?? []).length !== 1) {
+    throw new Error("release and gdam-publish must pin the same full-SHA gdam-actions/publish");
+  }
   const forbidden = [
     ...FORBIDDEN_COUPLING,
     "live-e2e",

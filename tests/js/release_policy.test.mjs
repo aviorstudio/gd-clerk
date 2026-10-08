@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
-import { existsSync, readFileSync } from "node:fs";
+import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { join, dirname } from "node:path";
 import { test } from "node:test";
 import { fileURLToPath } from "node:url";
@@ -47,6 +48,27 @@ test("release publishes the tested zips to GitHub and then GDAM, only by hand", 
   assert.ok(release.includes("dist/@aviorstudio_gd-clerk.gdam.zip --target"));
   assert.ok(release.includes("sha256sum --check --strict @aviorstudio_gd-clerk.gdam.zip.sha256"));
   assert.equal(existsSync(join(root, "scripts/release-hold.mjs")), false);
+});
+
+test("GDAM publication is trusted publishing with no registry secret", () => {
+  const release = readFileSync(join(root, ".github/workflows/release.yml"), "utf8");
+  const recovery = readFileSync(join(root, ".github/workflows/gdam-publish.yml"), "utf8");
+  for (const text of [release, recovery]) {
+    assert.doesNotMatch(text, /GDAM_SECRET_KEY|secret-key:/);
+    assert.doesNotMatch(text, /gdam-actions\/install@/);
+    assert.match(text, /id-token: write/);
+    assert.match(text, /gdam-actions\/publish@[0-9a-f]{40}/);
+  }
+  const dir = mkdtempSync(join(tmpdir(), "gd-clerk-policy-"));
+  mkdirSync(join(dir, ".github/workflows"), { recursive: true });
+  for (const name of ["release.yml", "ci.yml", "gdam-publish.yml"]) {
+    copyFileSync(join(root, ".github/workflows", name), join(dir, ".github/workflows", name));
+  }
+  writeFileSync(join(dir, ".github/workflows/release.yml"), release.replace("id-token: write", ""));
+  assert.throws(() => assertWorkflows(dir), /id-token: write/);
+  writeFileSync(join(dir, ".github/workflows/release.yml"), release.replace("id-token: write", "id-token: write\n      GDAM_SECRET_KEY: x"));
+  assert.throws(() => assertWorkflows(dir), /secret key/);
+  rmSync(dir, { recursive: true, force: true });
 });
 
 test("candidate provenance is generic and is not a release", () => {
