@@ -38,12 +38,23 @@ export function assertWorkflows(root) {
   if (!/id-token: write/.test(jobBlock(gdamPublish, "publish"))) {
     throw new Error("gdam-publish job must grant id-token: write for GDAM trusted publishing");
   }
+  // Only the publishing jobs may mint the registry-trusted token; the test
+  // job runs third-party code and a workflow-level grant would reach it.
+  if (/id-token/.test(releaseHead) || /id-token/.test(testJob) || /id-token/.test(gdamPublish.split("\njobs:")[0])) {
+    throw new Error("id-token must be granted only to the publishing jobs");
+  }
+  if (!gdamPublish.includes('test "$commit" = "$GITHUB_SHA"')) {
+    throw new Error("gdam-publish must bind the tag commit to the run's commit");
+  }
   for (const [name, text] of [["release", release], ["gdam-publish", gdamPublish], ["ci", ci]]) {
     if (/GDAM_SECRET_KEY|secret-key:/.test(text)) throw new Error(`${name} workflow must not use a GDAM secret key`);
     if (/gdam-actions\/install@/.test(text)) throw new Error(`${name} workflow installs the GDAM CLI, which publishing no longer needs`);
   }
-  const pins = new Set([...release.matchAll(/gdam-actions\/publish@([0-9a-f]{40})/g), ...gdamPublish.matchAll(/gdam-actions\/publish@([0-9a-f]{40})/g)].map((m) => m[1]));
-  if (pins.size !== 1 || (release.match(/gdam-actions\/publish@/g) ?? []).length !== 1 || (gdamPublish.match(/gdam-actions\/publish@/g) ?? []).length !== 1) {
+  const shaPins = (text) => [...text.matchAll(/gdam-actions\/publish@([0-9a-f]{40})\b/g)].map((m) => m[1]);
+  const anyPins = (text) => (text.match(/gdam-actions\/publish@/g) ?? []).length;
+  const releasePins = shaPins(release);
+  const recoveryPins = shaPins(gdamPublish);
+  if (releasePins.length !== 1 || recoveryPins.length !== 1 || anyPins(release) !== 1 || anyPins(gdamPublish) !== 1 || releasePins[0] !== recoveryPins[0]) {
     throw new Error("release and gdam-publish must pin the same full-SHA gdam-actions/publish");
   }
   const forbidden = [
@@ -75,6 +86,7 @@ export function assertWorkflows(root) {
     "node scripts/verify-zip.mjs",
     "node scripts/editor-lifecycle.mjs",
     "node scripts/release-guard.mjs --main",
+    'test "$commit" = "$GITHUB_SHA"',
     "sha256sum --check --strict",
     "gh release create",
     "refs/heads/main",

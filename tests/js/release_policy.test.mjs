@@ -60,15 +60,36 @@ test("GDAM publication is trusted publishing with no registry secret", () => {
     assert.match(text, /gdam-actions\/publish@[0-9a-f]{40}/);
   }
   const dir = mkdtempSync(join(tmpdir(), "gd-clerk-policy-"));
-  mkdirSync(join(dir, ".github/workflows"), { recursive: true });
-  for (const name of ["release.yml", "ci.yml", "gdam-publish.yml"]) {
-    copyFileSync(join(root, ".github/workflows", name), join(dir, ".github/workflows", name));
+  const workflows = join(dir, ".github/workflows");
+  mkdirSync(workflows, { recursive: true });
+  const reset = () => {
+    for (const name of ["release.yml", "ci.yml", "gdam-publish.yml"]) {
+      copyFileSync(join(root, ".github/workflows", name), join(workflows, name));
+    }
+  };
+  const mutate = (name, from, to, expected) => {
+    reset();
+    const text = readFileSync(join(root, ".github/workflows", name), "utf8");
+    assert.ok(text.includes(from), `${name} lacks ${from}`);
+    writeFileSync(join(workflows, name), text.replace(from, to));
+    assert.throws(() => assertWorkflows(dir), expected);
+  };
+  try {
+    reset();
+    assert.doesNotThrow(() => assertWorkflows(dir));
+    mutate("release.yml", "      id-token: write\n", "", /id-token: write/);
+    mutate("gdam-publish.yml", "      id-token: write\n", "", /id-token: write/);
+    mutate("release.yml", "permissions:\n  contents: read\n", "permissions:\n  contents: read\n  id-token: write\n", /only to the publishing jobs/);
+    mutate("gdam-publish.yml", "permissions:\n  contents: read\n", "permissions:\n  contents: read\n  id-token: write\n", /only to the publishing jobs/);
+    mutate("release.yml", "      id-token: write\n", "      id-token: write\n      GDAM_SECRET_KEY: x\n", /secret key/);
+    mutate("gdam-publish.yml", "      - name: Publish to GDAM\n", "      - uses: aviorstudio/gdam-actions/install@3d9591c34711bb408302866d1e213409c2bdc59a\n      - name: Publish to GDAM\n", /installs the GDAM CLI/);
+    mutate("gdam-publish.yml", "gdam-actions/publish@3d9591c34711bb408302866d1e213409c2bdc59a", "gdam-actions/publish@v0.3.0", /same full-SHA/);
+    mutate("gdam-publish.yml", "gdam-actions/publish@3d9591c34711bb408302866d1e213409c2bdc59a", "gdam-actions/publish@" + "0".repeat(40), /same full-SHA/);
+    mutate("gdam-publish.yml", 'test "$commit" = "$GITHUB_SHA"', "true", /bind the tag commit/);
+    mutate("release.yml", 'test "$commit" = "$GITHUB_SHA"', "true", /release workflow missing/);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
   }
-  writeFileSync(join(dir, ".github/workflows/release.yml"), release.replace("id-token: write", ""));
-  assert.throws(() => assertWorkflows(dir), /id-token: write/);
-  writeFileSync(join(dir, ".github/workflows/release.yml"), release.replace("id-token: write", "id-token: write\n      GDAM_SECRET_KEY: x"));
-  assert.throws(() => assertWorkflows(dir), /secret key/);
-  rmSync(dir, { recursive: true, force: true });
 });
 
 test("candidate provenance is generic and is not a release", () => {
