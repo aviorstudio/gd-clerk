@@ -1,0 +1,14 @@
+{
+  "version": 1,
+  "profile": "godot-addon",
+  "commands": {
+    "install": ["make", "install"],
+    "lint": ["make", "lint"],
+    "test": ["make", "test"],
+    "build": ["make", "build"],
+    "check": ["make", "check"],
+    "dev": {"unsupported": "Interactive use belongs to the consuming Godot project."},
+    "stop": {"unsupported": "The addon owns no standalone development service."},
+    "clean": ["make", "clean"]
+  }
+}
