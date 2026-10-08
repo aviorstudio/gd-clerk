@@ -1,4 +1,4 @@
-<!-- Generated from private documentation source. Do not edit directly. Source SHA256: 5f2ecc8d04a71c77b7c0719d18f4f1279876887982b1c12eb482374d8e84477d -->
+<!-- Generated from private documentation source. Do not edit directly. Source SHA256: 435c8ad2afee00fe61a765747d5f6de0c02e2b53b2577916674adbdfb77fd8b7 -->
 
 # gd-clerk
 
@@ -18,7 +18,7 @@ Web exports load the browser SDK, which owns cookies and persistence. Native bui
 
 On native the Frontend API host must be `clerk.<domain>` or `<slug>.clerk.accounts.dev` and must match the publishable key. `allowed_origins` is ignored.
 
-`ClerkCredentialStore` holds the Frontend API client token for this device under the key `client_token`. The default keeps it in process memory, so a session lasts until the game exits. To restore sessions across launches, subclass it and override `read_value(key) -> String` and `write_value(key, value) -> bool` with the OS keyring; the addon never writes that token to disk itself. The token is kept after sign-out so the next sign-in reuses the client, and it is cleared when the Frontend API rejects it.
+`ClerkCredentialStore` holds the Frontend API client token for this device under the key `client_token`. The default keeps it in process memory, so a session lasts until the game exits. To restore sessions across launches, subclass it and override `read_value(key) -> String` and `write_value(key, value) -> bool` with the OS keyring; the addon never writes that token to disk itself. The token is kept after sign-out so the next sign-in reuses the client. It is cleared only when the Frontend API rejects it during session restore in `configure` (401 or 404) or returns an empty `Authorization` header; a rejected session elsewhere is reported as `SESSION_EXPIRED` and leaves the stored token in place.
 
 ## API
 
