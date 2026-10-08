@@ -174,7 +174,7 @@ function harness(options = {}) {
     },
   };
   const clerk = {
-    version: "6.33.0",
+    version: "6.38.1",
     isSignedIn: false,
     session: null,
     user: null,
@@ -248,7 +248,7 @@ const config = {
 test("pinned error map and limits match the committed contract", () => {
   const factory = loadFactory();
   const bridge = factory({
-    getClerk: () => function Clerk() { return { version: "6.33.0", async load() {} }; },
+    getClerk: () => function Clerk() { return { version: "6.38.1", async load() {} }; },
     getLocation: () => ({ origin: "http://127.0.0.1:8080" }),
     getDocument: () => dom().document,
     getSessionStorage: () => ({ getItem() { return null; }, setItem() {}, removeItem() {} }),
@@ -260,7 +260,7 @@ test("pinned error map and limits match the committed contract", () => {
   });
   assert.deepEqual(JSON.parse(JSON.stringify(bridge._errorCodes)), codes.codes);
   assert.deepEqual(JSON.parse(JSON.stringify(bridge._limits)), limits);
-  assert.equal(bridge._pinnedVersion, "6.33.0");
+  assert.equal(bridge._pinnedVersion, "6.38.1");
 });
 
 test("configure rejects mismatched instance, secret, proxy, and unlisted origins", async () => {
@@ -291,7 +291,7 @@ test("configure accepts listed origins only when they are current", async () => 
 
 test("configure refuses a constructor and does not construct Clerk", async () => {
   let constructed = 0;
-  function Ctor() { constructed += 1; return { version: "6.33.0", async load() {} }; }
+  function Ctor() { constructed += 1; return { version: "6.38.1", async load() {} }; }
   const { bridge } = harness({ clerkValue: Ctor });
   const refused = await call(bridge, "configure", config);
   assert.equal(refused.error_key, "CONFIG");
@@ -341,7 +341,7 @@ test("configure does not inject the browser script until the key and Frontend AP
       injected.push(key);
       pageWindow.__clerk_publishable_key = key;
       clerk = {
-        version: "6.33.0",
+        version: "6.38.1",
         publishableKey: key,
         proxyUrl: "",
         domain: "",

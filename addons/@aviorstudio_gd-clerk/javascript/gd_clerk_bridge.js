@@ -1,7 +1,7 @@
 (function (root) {
   "use strict";
 
-  var PINNED_CLERK_VERSION = "6.33.0";
+  var PINNED_CLERK_VERSION = "6.38.1";
   var CAPTCHA_ELEMENT_ID = "clerk-captcha";
   var INVISIBLE_CAPTCHA_CLASS = "clerk-invisible-captcha";
   var LATCH_KEY = "gd_clerk_sign_out_incomplete";
