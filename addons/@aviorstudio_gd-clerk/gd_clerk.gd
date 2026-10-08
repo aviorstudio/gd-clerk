@@ -104,6 +104,9 @@ func resend_email_code(done: Callable) -> void:
 
 func cancel_email_code() -> void:
 	_generation += 1
+	if not _is_web() and _native != null:
+		# Abort first so a consumer that restarts from the CANCELLED callback is not FLOW_BUSY.
+		_native.cancel_email_code()
 	var stale: Array = []
 	for relay in _relays:
 		if relay.cancellable and not relay.settled and relay.generation != _generation:
@@ -116,8 +119,6 @@ func cancel_email_code() -> void:
 		_release_relay(relay)
 		_complete(relay.id, relay.done, ClerkResult.error("CANCELLED", "The request was cancelled."))
 	if not _is_web():
-		if _native != null:
-			_native.cancel_email_code()
 		return
 	var bridge := _bridge()
 	if bridge == null:

@@ -67,7 +67,6 @@ var _active_subject: String = ""
 var _flow: Dictionary = {}
 var _flow_request: Node = null
 var _cached_jwt: String = ""
-var _cached_exp: int = 0
 var _latched: bool = false
 var _sign_out_inflight: bool = false
 var _sign_out_waiters: Array = []
@@ -115,7 +114,15 @@ func configure(config: ClerkConfig, relay: RefCounted) -> void:
 		return
 	var generation := _session_generation
 	_send(HTTPClient.METHOD_GET, "/v1/client", {}, false, func(reply: Dictionary) -> void:
-		if not _owner_alive() or generation != _session_generation:
+		if not _owner_alive():
+			return
+		if generation != _session_generation:
+			# Another reply moved the session while the restore was in flight.
+			# Report the current state instead of applying a stale snapshot.
+			_configured = true
+			var current_phase := "native_restored" if _active_session_id != "" else "native_signed_out"
+			_emit_session()
+			_deliver(relay, _payload("CONFIGURED", "", MESSAGES.CONFIGURED, {"phase": current_phase}))
 			return
 		if reply.transport_ok and (reply.status == 401 or reply.status == 404):
 			_forget_client_token()
@@ -143,13 +150,12 @@ func configure(config: ClerkConfig, relay: RefCounted) -> void:
 func begin_email_code(email: String, mode: int, relay: RefCounted) -> void:
 	if not _require_ready(relay) or _reject_if_latched(relay):
 		return
-	if _flow_request != null:
+	if _flow_request != null or not _flow.is_empty():
 		_deliver(relay, _payload("ERROR", "UNKNOWN", MESSAGES.FLOW_BUSY))
 		return
 	if _active_session_id != "":
 		_deliver(relay, _payload("ERROR", "UNKNOWN", MESSAGES.SESSION_PRESENT))
 		return
-	_flow = {}
 	var generation: int = owner._generation
 	if mode == 1:
 		_flow_request = _send(HTTPClient.METHOD_POST, "/v1/client/sign_ups", {"email_address": email}, true, func(reply: Dictionary) -> void:
@@ -218,10 +224,12 @@ func complete_email_code(code: String, relay: RefCounted) -> void:
 		var created := str(resource.get("created_session_id", ""))
 		if status != "complete" or created.is_empty():
 			var phase := "missing_factor" if sign_up else "status_challenge"
+			_flow = {}
 			_deliver(relay, _payload("NEEDS_MORE_STEPS", "UNSUPPORTED_CHALLENGE", MESSAGES.NEEDS_MORE_STEPS, {"phase": phase}))
 			return
 		var session := _session_by_id(created)
 		if session.is_empty() or str(session.get("status", "")) != "active":
+			_flow = {}
 			_deliver(relay, _payload("NEEDS_MORE_STEPS", "UNSUPPORTED_CHALLENGE", MESSAGES.NEEDS_MORE_STEPS, {"phase": "status_challenge"}))
 			return
 		_flow = {}
@@ -293,7 +301,6 @@ func get_session_token(min_validity_seconds: int, relay: RefCounted) -> void:
 			payload = _payload("ERROR", "UNKNOWN", MESSAGES.UNKNOWN)
 		elif generation == _session_generation and sid == _active_session_id:
 			_cached_jwt = jwt
-			_cached_exp = _token_exp(jwt)
 		else:
 			payload = _payload("ERROR", "SESSION_EXPIRED", MESSAGES.SESSION_EXPIRED)
 		for waiter in waiters:
@@ -318,6 +325,8 @@ func sign_out(relay: RefCounted) -> void:
 	_sign_out_inflight = true
 	_latched = true
 	_emit_session()
+	if not _owner_alive():
+		return
 	if not owner._revoke_session.is_valid():
 		_finish_sign_out(_failed_revoke("CONFIG", "revoke_missing"))
 		return
@@ -405,8 +414,10 @@ func _request_revoke_ack(jwt: String, sid: String, sub: String, generation: int)
 	_revoke_attempt += 1
 	var attempt := _revoke_attempt
 	var settled := [false]
-	var tree := owner.get_tree()
-	var timer := tree.create_timer(float(timeout_ms) / 1000.0, true, false, true)
+	if not _owner_ready():
+		_finish_sign_out(_failed_revoke("UNKNOWN", "revoke_no_session"))
+		return
+	var timer := owner.get_tree().create_timer(float(timeout_ms) / 1000.0, true, false, true)
 	timer.timeout.connect(func() -> void:
 		if settled[0] or not _owner_alive():
 			return
@@ -432,14 +443,19 @@ func _remove_session(sid: String, generation: int) -> void:
 	_send(HTTPClient.METHOD_POST, "/v1/client/sessions/%s/remove" % sid, {}, false, func(reply: Dictionary) -> void:
 		if not _owner_alive():
 			return
-		var gone: bool = reply.error.is_empty() or str(reply.error.get("error_key", "")) == "SESSION_EXPIRED"
-		if not gone:
+		var already_gone: bool = not reply.error.is_empty() and str(reply.error.get("error_key", "")) == "SESSION_EXPIRED"
+		if not reply.error.is_empty() and not already_gone:
 			var key := "NETWORK" if str(reply.error.get("error_key", "")) == "NETWORK" else "UNKNOWN"
 			_finish_sign_out(_failed_revoke(key, "deactivate_failed"))
 			return
+		if already_gone:
+			# The Frontend API no longer knows the session; the error reply carries
+			# no client snapshot, so drop the stale local entry.
+			_drop_session(sid)
 		if generation == _session_generation and sid == _active_session_id:
 			_clear_session()
-		if not _session_by_id(sid).is_empty() and str(_session_by_id(sid).get("status", "")) == "active":
+		var remaining := _session_by_id(sid)
+		if not remaining.is_empty() and str(remaining.get("status", "")) == "active":
 			_finish_sign_out(_failed_revoke("UNKNOWN", "deactivate_failed"))
 			return
 		_latched = false
@@ -538,13 +554,20 @@ func _session_by_id(sid: String) -> Dictionary:
 	return {}
 
 
+func _drop_session(sid: String) -> void:
+	var kept: Array = []
+	for item in _sessions:
+		if str(item.get("id", "")) != sid:
+			kept.append(item)
+	_sessions = kept
+
+
 func _set_active_session(sid: String, subject: String) -> void:
 	if sid != _active_session_id:
 		_session_generation += 1
 	_active_session_id = sid
 	_active_subject = subject
 	_cached_jwt = ""
-	_cached_exp = 0
 
 
 func _clear_session() -> void:
@@ -553,7 +576,6 @@ func _clear_session() -> void:
 	_active_session_id = ""
 	_active_subject = ""
 	_cached_jwt = ""
-	_cached_exp = 0
 
 
 func _emit_session() -> void:

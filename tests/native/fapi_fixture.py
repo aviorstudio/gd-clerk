@@ -8,6 +8,8 @@ verification code the addon sends, so the Godot test needs no control channel:
   ok@example.test          sign-in happy path (code 424242)
   short@example.test       sign-in; the session is revoked server-side after
                            its first token mint
+  remote@example.test      sign-in; the consumer's revoke removes the session,
+                           so POST sessions/{id}/remove answers 404
   missing@example.test     form_identifier_not_found
   ratelimit@example.test   HTTP 429 on sign-in creation
   disabled@example.test    native_api_disabled (400)
@@ -138,6 +140,7 @@ def create_session(client: dict, email: str) -> dict:
         "email": email,
         "ttl": TOKEN_TTL_SECONDS,
         "revoke_after_mint": email == "short@example.test",
+        "removed_remotely": email == "remote@example.test",
     }
     STATE["next_session"] += 1
     STATE["next_user"] += 1
@@ -194,7 +197,7 @@ class Handler(BaseHTTPRequestHandler):
             return "authorization must be the raw client token"
         if self.command == "POST" and "application/x-www-form-urlencoded" not in (self.headers.get("Content-Type") or ""):
             return "POST must be form encoded"
-        for value in self.headers.values():
+        for value in list(self.headers.values()) + [self.path]:
             if "pk_test" in value or "pk_live" in value:
                 return "publishable key sent"
         return ""
@@ -414,6 +417,10 @@ class Handler(BaseHTTPRequestHandler):
     def _session_remove(self, client: dict, session_id: str):
         session = self._find_session(client, session_id)
         if session is None:
+            return error_body("resource_not_found", 404)
+        if session["removed_remotely"]:
+            client["sessions"].remove(session)
+            client["last_active_session_id"] = None
             return error_body("resource_not_found", 404)
         session["status"] = "removed"
         if client["last_active_session_id"] == session_id:
