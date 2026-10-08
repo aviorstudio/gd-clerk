@@ -55,13 +55,13 @@ test("candidate provenance is generic and is not a release", () => {
     zipSha256: sha,
     clerkBrowserSha256: browserSha,
     version: "0.1.0",
-    entries: 34,
+    entries: 38,
     clerkVersion: "6.38.1",
   });
   assert.equal(doc.release, false);
   assert.equal(doc.isolated_test_only, true);
   assert.equal(doc.schema, "gd-clerk.candidate.v1");
-  assert.throws(() => buildCandidate({ commit: "abc", zipSha256: sha, clerkBrowserSha256: browserSha, entries: 34 }));
+  assert.throws(() => buildCandidate({ commit: "abc", zipSha256: sha, clerkBrowserSha256: browserSha, entries: 38 }));
   assert.throws(() => assertReleaseIdentity({ tag: "v9.9.9", commit, version: "0.1.0" }));
   assert.doesNotThrow(() => assertReleaseIdentity({ tag: "v0.1.0", commit, version: "0.1.0" }));
 });
@@ -92,18 +92,46 @@ test("release notes are package provenance", () => {
     zipSha256: sha,
     clerkVersion: vendor.version,
     integrity: vendor.integrity,
-    entries: 34,
+    entries: 38,
   };
   const notes = renderNotes(info);
   assertNotes(notes, info);
-  assert.doesNotThrow(() => assert.match(notes, /Web-only Godot 4\.7/));
+  assert.doesNotThrow(() => assert.match(notes, /Godot 4\.7 addon for Clerk email one-time codes on web and native builds/));
   assert.throws(() => assertNotes("# Release failure recovery\n", info));
+});
+
+test("addon version is declared once per surface and agrees everywhere", () => {
+  const pkg = JSON.parse(readFileSync(join(root, "package.json"), "utf8"));
+  const cfg = readFileSync(join(root, "addons/@aviorstudio_gd-clerk/plugin.cfg"), "utf8");
+  const backend = readFileSync(join(root, "addons/@aviorstudio_gd-clerk/clerk_native_backend.gd"), "utf8");
+  const packager = readFileSync(join(root, "scripts/package-addon.mjs"), "utf8");
+  const verifier = readFileSync(join(root, "scripts/verify-zip.mjs"), "utf8");
+  const release = readFileSync(join(root, ".github/workflows/release.yml"), "utf8");
+  assert.match(cfg, new RegExp(`\nversion="${pkg.version.replaceAll(".", "\\.")}"\n`));
+  assert.match(backend, new RegExp(`const ADDON_VERSION := "${pkg.version.replaceAll(".", "\\.")}"`));
+  assert.ok(packager.includes(`plugin_version: "${pkg.version}"`));
+  assert.ok(verifier.includes(`manifest.plugin_version !== "${pkg.version}"`));
+  assert.ok(release.includes(`default: v${pkg.version}`));
+  assert.doesNotMatch(cfg, /unavailable/i);
+});
+
+test("native backend never sends the publishable key and keeps the bridge untouched", () => {
+  const backend = readFileSync(join(root, "addons/@aviorstudio_gd-clerk/clerk_native_backend.gd"), "utf8");
+  assert.equal(backend.includes("publishable_key"), false);
+  assert.ok(backend.includes("_is_native=true"));
+  assert.ok(backend.includes("Clerk-API-Version: "));
+  assert.ok(backend.includes("max_redirects = 0"));
+  assert.ok(backend.includes("JSON.parse_string") === false);
+  assert.equal(backend.includes("FileAccess.open"), false);
+  const codes = JSON.parse(readFileSync(join(root, "addons/@aviorstudio_gd-clerk/observed_error_codes.json"), "utf8"));
+  assert.equal(codes.native_codes.native_api_disabled, "CONFIG");
+  assert.equal(codes.native_codes.verification_code_too_many_attempts, "RATE_LIMIT");
 });
 
 test("workflows keep the publish token narrow and releases manual", () => {
   assertWorkflows(root);
   const allow = JSON.parse(readFileSync(join(root, "scripts/package-allowlist.json"), "utf8"));
-  assert.equal(allow.addon_files, 33);
-  assert.equal(allow.zip_entries, 34);
-  assert.equal(allow.files.length, 33);
+  assert.equal(allow.addon_files, 37);
+  assert.equal(allow.zip_entries, 38);
+  assert.equal(allow.files.length, 37);
 });

@@ -20,7 +20,7 @@ export function renderNotes(info) {
   return [
     `# gd-clerk ${info.tag}`,
     "",
-    "Web-only Godot 4.7 addon for Clerk email one-time codes. Sign-in and sign-up stay separate. Native sign-in is unavailable. The browser SDK owns the session.",
+    "Godot 4.7 addon for Clerk email one-time codes on web and native builds. Sign-in and sign-up stay separate. Web exports use the pinned browser SDK; native builds call the Clerk Frontend API directly and require the instance's Native API to be enabled.",
     "",
     `- Plugin version: ${info.version}`,
     "- Package: @aviorstudio_gd-clerk.zip",

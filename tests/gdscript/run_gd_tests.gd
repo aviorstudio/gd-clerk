@@ -6,7 +6,9 @@ func _init() -> void:
 
 func _run() -> bool:
 	var failed := false
-	failed = _expect(_native_unavailable(), "native methods return UNAVAILABLE once") or failed
+	failed = _expect(_native_unconfigured(), "native methods fail closed with CONFIG until configured") or failed
+	failed = _expect(_native_policy(), "native config policy accepts Clerk hosts and rejects the rest") or failed
+	failed = _expect(_native_helpers(), "native backend redacts, form-encodes, decodes exp and parses revoke acks") or failed
 	failed = _expect(_config_resource(), "Inspector configuration round-trips without runtime callbacks") or failed
 	failed = _expect(_policy(), "config policy rejects unsafe and unlisted origins") or failed
 	failed = _expect(_origin_closed(), "empty and unsupported origins fail closed without echoing") or failed
@@ -25,11 +27,11 @@ func _expect(ok: bool, label: String) -> bool:
 	push_error("FAIL " + label)
 	return true
 
-func _native_unavailable() -> bool:
+func _native_unconfigured() -> bool:
 	var clerk = load("res://addons/@aviorstudio_gd-clerk/gd_clerk.gd").new()
 	var calls: Array = []
 	var done := func(result: ClerkResult) -> void:
-		calls.append(result.state)
+		calls.append(result.state + "/" + result.error_key)
 	clerk.configure(ClerkConfig.new(), done)
 	clerk.begin_email_code("person@example.com", 0, done)
 	clerk.complete_email_code("123456", done)
@@ -37,10 +39,101 @@ func _native_unavailable() -> bool:
 	clerk.get_session_token(30, done)
 	clerk.sign_out(done)
 	clerk.cancel_email_code()
-	clerk.configure(ClerkConfig.new(), done)
-	var ok := calls.size() == 7 and calls.all(func(item): return item == "UNAVAILABLE")
+	clerk.configure(null, done)
+	# A valid native config on a node outside the tree fails closed too: requests need the tree.
+	var detached := _native_config("https://example.clerk.accounts.dev")
+	clerk.configure(detached, done)
+	var ok: bool = calls.size() == 8 and calls.all(func(item): return item == "ERROR/CONFIG") and clerk._relays.size() == 0
 	clerk.free()
 	return ok
+
+func _native_config(frontend_api: String) -> ClerkConfig:
+	var host := frontend_api.trim_prefix("https://").trim_prefix("http://")
+	var config := ClerkConfig.new()
+	var encoded := Marshalls.utf8_to_base64(host + "$")
+	while encoded.ends_with("="):
+		encoded = encoded.substr(0, encoded.length() - 1)
+	config.publishable_key = "pk_test_" + encoded
+	config.frontend_api = frontend_api
+	return config
+
+func _native_policy() -> bool:
+	if ClerkPolicy.validate_native_config(_native_config("https://example.clerk.accounts.dev")) != "":
+		return false
+	if ClerkPolicy.validate_native_config(_native_config("https://clerk.example.com")) != "":
+		return false
+	if ClerkPolicy.validate_native_config(_native_config("https://clerk.play.example.com")) != "":
+		return false
+	# allowed_origins are not required natively.
+	var with_origins := _native_config("https://clerk.example.com")
+	with_origins.allowed_origins = PackedStringArray(["https://consumer.example"])
+	if ClerkPolicy.validate_native_config(with_origins) != "":
+		return false
+	var rejected: Array = [
+		_native_config("http://example.clerk.accounts.dev"),
+		_native_config("https://accounts.example.com"),
+		_native_config("https://clerk.accounts.dev"),
+		_native_config("https://example.com"),
+		_native_config("https://clerk.example.com/path"),
+		_native_config("http://127.0.0.1:9"),
+	]
+	for config in rejected:
+		var message: String = ClerkPolicy.validate_native_config(config)
+		if message != "Configuration is invalid." or message.contains("clerk") or message.contains("127"):
+			return false
+	var mismatched := _native_config("https://clerk.example.com")
+	mismatched.frontend_api = "https://clerk.other.com"
+	if ClerkPolicy.validate_native_config(mismatched) == "":
+		return false
+	var secret := _native_config("https://clerk.example.com")
+	secret.publishable_key = "sk_" + "live_" + "notallowedhere1234567890"
+	if ClerkPolicy.validate_native_config(secret) == "" or ClerkPolicy.validate_native_config(null) == "":
+		return false
+	# Loopback http is accepted only while the test flag is set.
+	var loopback := _native_config("http://127.0.0.1:9")
+	var before := ClerkPolicy.validate_native_config(loopback)
+	OS.set_environment("GD_CLERK_TEST_LOOPBACK", "1")
+	var during := ClerkPolicy.validate_native_config(loopback)
+	var remote_http := ClerkPolicy.validate_native_config(_native_config("http://example.clerk.accounts.dev"))
+	OS.unset_environment("GD_CLERK_TEST_LOOPBACK")
+	var after := ClerkPolicy.validate_native_config(loopback)
+	if before == "" or during != "" or remote_http == "" or after == "":
+		return false
+	var web := _sample_config()
+	return ClerkPolicy.validate_config(web, "http://127.0.0.1:9") == "" and not ClerkPolicy.is_native_frontend_api_host("clerk.") and ClerkPolicy.is_native_frontend_api_host("CLERK.Example.com")
+
+func _native_helpers() -> bool:
+	var backend_script = load("res://addons/@aviorstudio_gd-clerk/clerk_native_backend.gd")
+	var backend = backend_script.new()
+	var redacted: String = backend_script.sanitize_message("code 123456 for person@example.com token eyJhbGciOiJIUzI1NiJ9.eyJleHAiOjF9.c2ln key pk_test_abc123 ok")
+	if redacted.contains("person@") or redacted.contains("123456") or redacted.contains("eyJ") or redacted.contains("pk_test") or not redacted.ends_with("ok"):
+		return false
+	if backend_script.sanitize_message("x".repeat(400)).length() != 180:
+		return false
+	var form: String = backend_script._form_encode({"identifier": "a+b@example.com", "strategy": "email_code"})
+	if form != "identifier=a%2Bb%40example.com&strategy=email_code":
+		return false
+	var exp := int(Time.get_unix_time_from_system()) + 600
+	var payload := Marshalls.utf8_to_base64(JSON.stringify({"exp": exp, "sub": "user_1"})).replace("=", "").replace("+", "-").replace("/", "_")
+	var jwt := "eyJhbGciOiJSUzI1NiJ9." + payload + ".sig"
+	if backend._token_exp(jwt) != exp or not backend._token_meets(jwt, 120) or backend._token_meets(jwt, 601) or backend._token_meets("not.a.jwt", 0):
+		return false
+	var good := {"schema": "gd-clerk.revoke.v1", "remote_confirmed": true, "session_id": "sess_1", "subject": "user_1"}
+	if backend._parse_revoke_ack(good).is_empty() or backend._parse_revoke_ack(JSON.stringify(good)).is_empty():
+		return false
+	var extra := good.duplicate()
+	extra["note"] = "x"
+	var unconfirmed := good.duplicate()
+	unconfirmed["remote_confirmed"] = "true"
+	if not backend._parse_revoke_ack(extra).is_empty() or not backend._parse_revoke_ack(unconfirmed).is_empty() or not backend._parse_revoke_ack("[]").is_empty():
+		return false
+	if backend._sanitize_token("Bearer") != "" or backend._sanitize_token(" dvb_abc ") != "dvb_abc" or backend._sanitize_token("a b") != "":
+		return false
+	var state: Dictionary = backend.session_state()
+	if state.get("status") != "unavailable" or state.get("signed_in") != false or state.get("protected_actions_blocked") != false:
+		return false
+	var store := ClerkCredentialStore.new()
+	return store.read_value("client_token") == "" and store.write_value("client_token", "dvb_1") and store.read_value("client_token") == "dvb_1" and store.write_value("client_token", "") and store.read_value("client_token") == ""
 
 func _policy() -> bool:
 	var host := "example.clerk.accounts.dev"

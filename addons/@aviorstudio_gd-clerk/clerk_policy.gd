@@ -66,6 +66,69 @@ static func validate_config(config: ClerkConfig, origin: String) -> String:
 		return "Configuration is invalid."
 	return ""
 
+## Native (non-web) configuration. The Frontend API must be the https origin
+## encoded by the publishable key and must be a Clerk-hosted host. Plain http is
+## accepted only for 127.0.0.1 while GD_CLERK_TEST_LOOPBACK=1 is set, so tests
+## can run against a loopback fixture. allowed_origins are not used natively.
+static func validate_native_config(config: ClerkConfig) -> String:
+	var bounds: Dictionary = limits()
+	var max_key := int(bounds.get("max_key_length", 512))
+	var max_fapi := int(bounds.get("max_fapi_length", 256))
+	if config == null:
+		return "Configuration is invalid."
+	var key := config.publishable_key
+	if key.begins_with("sk_") or key.length() < 20 or key.length() > max_key:
+		return "Configuration is invalid."
+	var host := decode_publishable_key_host(key)
+	if host.is_empty():
+		return "Configuration is invalid."
+	var fapi := config.frontend_api
+	if fapi.length() > max_fapi:
+		return "Configuration is invalid."
+	var rest := ""
+	if fapi.begins_with("https://"):
+		rest = fapi.substr(8)
+	elif fapi.begins_with("http://") and native_loopback_allowed():
+		rest = fapi.substr(7)
+		if not is_loopback_host(rest):
+			return "Configuration is invalid."
+	else:
+		return "Configuration is invalid."
+	if rest.is_empty() or rest.contains("/") or rest.contains("?") or rest.contains("#") or rest.contains("@") or rest.contains("\\"):
+		return "Configuration is invalid."
+	if rest.contains(" ") or rest.contains("\t") or rest.contains("\n") or rest.contains("\r"):
+		return "Configuration is invalid."
+	if rest.to_lower() != host:
+		return "Configuration is invalid."
+	if not is_native_frontend_api_host(host) and not (native_loopback_allowed() and is_loopback_host(host)):
+		return "Configuration is invalid."
+	return ""
+
+## True for a Clerk-hosted Frontend API host: clerk.<domain> or <slug>.clerk.accounts.dev.
+static func is_native_frontend_api_host(host: String) -> bool:
+	var value := host.to_lower()
+	if value.contains(":") or value.contains("/"):
+		return false
+	if value == "clerk.accounts.dev":
+		return false
+	if value.ends_with(".clerk.accounts.dev"):
+		return value.length() > ".clerk.accounts.dev".length()
+	if value.begins_with("clerk."):
+		return value.substr(6).contains(".")
+	return false
+
+static func is_loopback_host(host: String) -> bool:
+	var value := host.to_lower()
+	if value == "127.0.0.1":
+		return true
+	if not value.begins_with("127.0.0.1:"):
+		return false
+	var port := value.substr("127.0.0.1:".length())
+	return port.is_valid_int() and int(port) > 0 and int(port) < 65536
+
+static func native_loopback_allowed() -> bool:
+	return OS.get_environment("GD_CLERK_TEST_LOOPBACK") == "1"
+
 static func validate_email(email: String) -> bool:
 	var bounds: Dictionary = limits()
 	var max_len := int(bounds.get("max_email_length", 254))

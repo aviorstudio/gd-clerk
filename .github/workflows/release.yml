@@ -6,7 +6,7 @@ on:
       tag:
         description: Release tag that must match package.json
         required: true
-        default: v0.1.1
+        default: v0.2.0
         type: string
 
 permissions:

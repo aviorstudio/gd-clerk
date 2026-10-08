@@ -5,7 +5,7 @@ config_version=5
 
 config/name="gd-clerk"
 config/features=PackedStringArray("4.7")
-config/description="Web-only Clerk email-code addon."
+config/description="Clerk email-code addon for web and native Godot builds."
 
 [editor_plugins]
 

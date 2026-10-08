@@ -25,12 +25,12 @@ const allow = JSON.parse(readFileSync(join(root, "scripts/package-allowlist.json
 const relativeFiles = files.map((path) => relative(addon, path).replaceAll("\\", "/")).sort();
 const expected = [...allow.files].sort();
 if (
-  allow.addon_files !== 33 ||
-  allow.zip_entries !== 34 ||
-  expected.length !== 33 ||
+  allow.addon_files !== 37 ||
+  allow.zip_entries !== 38 ||
+  expected.length !== 37 ||
   relativeFiles.join("\n") !== expected.join("\n")
 ) {
-  console.error("addon files are not the closed 33-file allowlist");
+  console.error("addon files are not the closed 37-file allowlist");
   for (const name of relativeFiles) if (!expected.includes(name)) console.error("extra", name);
   for (const name of expected) if (!relativeFiles.includes(name)) console.error("missing", name);
   process.exit(1);
@@ -41,9 +41,9 @@ const entries = files.map((path) => {
   return { name, data, sha256: createHash("sha256").update(data).digest("hex") };
 });
 const manifest = {
-  plugin_version: "0.1.1",
+  plugin_version: "0.2.0",
   closed: true,
-  zip_entries: 34,
+  zip_entries: 38,
   files: entries.map(({ name, sha256, data }) => ({ path: name, sha256, bytes: data.length })),
 };
 const manifestBytes = Buffer.from(JSON.stringify(manifest, null, 2) + "\n");
