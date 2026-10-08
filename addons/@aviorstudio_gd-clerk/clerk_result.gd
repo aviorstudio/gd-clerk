@@ -26,6 +26,11 @@ const _PHASES: Array[String] = [
 	"revoke_stale",
 	"deactivate_failed",
 	"tab_deactivated",
+	"native_restored",
+	"native_signed_out",
+	"native_session_removed",
+	"native_token_rejected",
+	"native_api_disabled",
 ]
 
 static func unavailable() -> ClerkResult:

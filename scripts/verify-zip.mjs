@@ -40,8 +40,8 @@ export function verifyZip(zipPath) {
   const actual = createHash("sha256").update(zip).digest("hex");
   if (sidecar !== actual) throw new Error("zip sha256 sidecar does not match bytes");
   const entries = readZip(zip);
-  if (entries.length !== 34 || allow.zip_entries !== 34 || allow.addon_files !== 33) {
-    throw new Error(`zip has ${entries.length} entries; closed package requires 34`);
+  if (entries.length !== 38 || allow.zip_entries !== 38 || allow.addon_files !== 37) {
+    throw new Error(`zip has ${entries.length} entries; closed package requires 38`);
   }
   const names = entries.map((entry) => entry.name).sort();
   const expected = [
@@ -53,11 +53,11 @@ export function verifyZip(zipPath) {
   }
   const manifestEntry = entries.find((entry) => entry.name === "PACKAGE_MANIFEST.json");
   const manifest = JSON.parse(manifestEntry.data.toString("utf8"));
-  if (manifest.closed !== true || manifest.zip_entries !== 34 || manifest.plugin_version !== "0.1.1") {
+  if (manifest.closed !== true || manifest.zip_entries !== 38 || manifest.plugin_version !== "0.2.0") {
     throw new Error("package manifest is not closed");
   }
-  if (!Array.isArray(manifest.files) || manifest.files.length !== 33) {
-    throw new Error("package manifest file list is not the 33 addon files");
+  if (!Array.isArray(manifest.files) || manifest.files.length !== 37) {
+    throw new Error("package manifest file list is not the 37 addon files");
   }
   const byName = new Map(entries.map((entry) => [entry.name, entry.data]));
   for (const file of manifest.files) {

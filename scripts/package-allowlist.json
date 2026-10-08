@@ -1,10 +1,14 @@
 {
-  "zip_entries": 34,
-  "addon_files": 33,
-  "note": "All 34 ZIP entries are intentional: these 33 addon files plus PACKAGE_MANIFEST.json. The eight .uid files keep Godot script UIDs stable. javascript/clerk/ is the pinned @clerk/clerk-js@6.38.1 same-directory bundle plus VENDOR.json.",
+  "zip_entries": 38,
+  "addon_files": 37,
+  "note": "All 38 ZIP entries are intentional: these 37 addon files plus PACKAGE_MANIFEST.json. The ten .uid files keep Godot script UIDs stable. javascript/clerk/ is the pinned @clerk/clerk-js@6.38.1 same-directory bundle plus VENDOR.json. clerk_native_backend.gd and clerk_credential_store.gd serve non-web builds.",
   "files": [
     "clerk_config.gd",
     "clerk_config.gd.uid",
+    "clerk_credential_store.gd",
+    "clerk_credential_store.gd.uid",
+    "clerk_native_backend.gd",
+    "clerk_native_backend.gd.uid",
     "clerk_policy.gd",
     "clerk_policy.gd.uid",
     "clerk_result.gd",
