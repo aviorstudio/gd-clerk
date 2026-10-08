@@ -184,7 +184,7 @@ test("web export configures the pinned Clerk instance only after validation", as
           publishableKey: conflictKey,
           proxyUrl: "",
           domain: "",
-          version: "6.33.0",
+          version: "6.38.1",
           async load() { loaded += 1; },
         };
         const conflict = await configure(base);
@@ -235,7 +235,7 @@ test("web export configures the pinned Clerk instance only after validation", as
       assert.equal(loaded.src.includes("gd-clerk/clerk.browser.js"), true);
       assert.equal(loaded.clerkType, "object");
       assert.equal(loaded.hasLoad, true);
-      assert.equal(loaded.version, "6.33.0");
+      assert.equal(loaded.version, "6.38.1");
       assert.equal(loaded.keyMatches, true);
       assert.equal(loaded.error_key === "NETWORK" || loaded.state === "CONFIGURED", true);
       if (loaded.state !== "CONFIGURED") assert.equal(loaded.error_key, "NETWORK");

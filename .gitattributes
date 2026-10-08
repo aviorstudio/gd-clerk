@@ -1,0 +1,2 @@
+# Preserve upstream vendor bytes, including upstream whitespace.
+addons/@aviorstudio_gd-clerk/javascript/clerk/*.js -whitespace

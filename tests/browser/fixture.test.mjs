@@ -57,11 +57,11 @@ test("real browser loads the pinned clerk bundle and refuses invisible signup fa
     await page.goto(`http://127.0.0.1:${port}/tests/browser/fixture.html`, { timeout: 15000 });
     await page.waitForFunction(() => window.GdClerkBridge && window.Clerk && window.Clerk.version, null, { timeout: 15000 });
     const version = await page.evaluate(() => window.Clerk.version);
-    assert.equal(version, "6.33.0");
+    assert.equal(version, "6.38.1");
     const result = await page.evaluate(async () => {
       const bridge = window.GdClerkBridge._createForTest({
         getClerk: () => ({
-            version: "6.33.0",
+            version: "6.38.1",
             publishableKey: "pk_test_" + btoa("example.clerk.accounts.dev$").replace(/=+$/g, ""),
             proxyUrl: "",
             domain: "",
@@ -151,7 +151,7 @@ test("real browser sign-out deactivates the current tab without navigation or si
     const result = await page.evaluate(async () => {
       const bridge = window.GdClerkBridge._createForTest({
         getClerk: () => ({
-          version: "6.33.0",
+          version: "6.38.1",
           publishableKey: "pk_test_" + btoa("example.clerk.accounts.dev$").replace(/=+$/g, ""),
           proxyUrl: "",
           domain: "",
