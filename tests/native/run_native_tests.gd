@@ -43,10 +43,13 @@ func _test_configure_and_sign_in() -> void:
 	var clerk := _clerk()
 	var states: Array = []
 	clerk.session_changed.connect(func(state: SessionState) -> void: states.append(state))
+	var sync_box: Array = []
+	clerk.configure(_config(_store), func(result: ClerkResult) -> void: sync_box.append(result))
+	var configured_sync: bool = sync_box.size() == 1 and clerk.get_child_count() == 0
 	var configured: ClerkResult = await _call(func(done: Callable) -> void: clerk.configure(_config(_store), done))
 	_check(_is(configured, "CONFIGURED", "", "native_signed_out"), "configure without a stored token reports native_signed_out")
-	_check(states.size() == 1 and not states[0].signed_in and states[0].status == "signed_out" and not states[0].protected_actions_blocked, "configure emits a signed_out session state")
-	_check(_store.read_value("client_token") == "", "configure makes no request without a stored token")
+	_check(states.size() >= 1 and not states[0].signed_in and states[0].status == "signed_out" and not states[0].protected_actions_blocked, "configure emits a signed_out session state")
+	_check(configured_sync and _store.read_value("client_token") == "", "configure completes synchronously without a request when no token is stored")
 
 	var sent: ClerkResult = await _call(func(done: Callable) -> void: clerk.begin_email_code("ok@example.test", 0, done))
 	_check(_is(sent, "CODE_SENT"), "sign-in begin reaches CODE_SENT")
@@ -77,6 +80,11 @@ func _test_configure_and_sign_in() -> void:
 
 	var present: ClerkResult = await _call(func(done: Callable) -> void: clerk.begin_email_code("ok@example.test", 0, done))
 	_check(_is(present, "ERROR", "UNKNOWN") and present.message == "A session is already present.", "begin while signed in is refused")
+	var mid: Array = []
+	clerk.configure(_config(_store), func(result: ClerkResult) -> void: mid.append(result))
+	clerk._native._session_generation += 1
+	await _settle(mid)
+	_check(mid.size() == 1 and _is(mid[0], "CONFIGURED", "", "native_restored") and clerk._relays.size() == 0, "a configure whose session generation moved mid-flight still completes")
 
 	var first: ClerkResult = await _call(func(done: Callable) -> void: clerk.get_session_token(30, done))
 	_check(_is(first, "AUTHENTICATED") and first.token.begins_with("eyJ") and first.token.split(".").size() == 3, "get_session_token mints a JWT")
@@ -200,11 +208,13 @@ func _test_errors() -> void:
 	var disabled: ClerkResult = await _call(func(done: Callable) -> void: clerk.begin_email_code("disabled@example.test", 1, done))
 	_check(disabled.message.contains("Native API"), "native_api_disabled names the dashboard prerequisite")
 	var mfa: ClerkResult = await _call(func(done: Callable) -> void: clerk.begin_email_code("mfa@example.test", 0, done))
+	var busy: ClerkResult = await _call(func(done: Callable) -> void: clerk.begin_email_code("ok@example.test", 0, done))
+	_check(_is(busy, "ERROR", "UNKNOWN") and busy.message == "An email code request is already in progress.", "begin while a code is pending is refused until cancel")
 	var mfa_done: ClerkResult = await _call(func(done: Callable) -> void: clerk.complete_email_code(CORRECT_CODE, done))
 	_check(_is(mfa, "CODE_SENT") and _is(mfa_done, "NEEDS_MORE_STEPS", "UNSUPPORTED_CHALLENGE", "status_challenge"), "a second factor is NEEDS_MORE_STEPS")
-	clerk.cancel_email_code()
 	var no_flow: ClerkResult = await _call(func(done: Callable) -> void: clerk.complete_email_code(CORRECT_CODE, done))
-	_check(_is(no_flow, "ERROR", "CANCELLED"), "complete without a flow is CANCELLED")
+	_check(_is(no_flow, "ERROR", "CANCELLED"), "NEEDS_MORE_STEPS ends the flow so complete is CANCELLED")
+	clerk.cancel_email_code()
 	var no_resend: ClerkResult = await _call(func(done: Callable) -> void: clerk.resend_email_code(done))
 	_check(_is(no_resend, "ERROR", "CANCELLED"), "resend without a flow is CANCELLED")
 	_free(clerk)
@@ -247,6 +257,24 @@ func _test_session_gone() -> void:
 	_check(_is(local, "ERROR", "SESSION_EXPIRED"), "later mints fail locally")
 	_free(clerk)
 
+	var remote := _clerk()
+	var remote_states: Array = []
+	remote.session_changed.connect(func(state: SessionState) -> void: remote_states.append(state))
+	var config := _config(_store)
+	config.revoke_session = func(jwt: String, ack: Callable) -> void:
+		var claims := _claims(jwt)
+		ack.call({"schema": "gd-clerk.revoke.v1", "remote_confirmed": true, "session_id": str(claims.get("sid", "")), "subject": str(claims.get("sub", ""))})
+	await _call(func(done: Callable) -> void: remote.configure(config, done))
+	await _call(func(done: Callable) -> void: remote.begin_email_code("remote@example.test", 0, done))
+	var remote_authed: ClerkResult = await _call(func(done: Callable) -> void: remote.complete_email_code(CORRECT_CODE, done))
+	var remote_out: ClerkResult = await _call(func(done: Callable) -> void: remote.sign_out(done))
+	_check(_is(remote_authed, "AUTHENTICATED") and _is(remote_out, "SIGNED_OUT", "", "native_session_removed"), "a session the revoke callback already removed still signs out")
+	_check(not remote_states[-1].protected_actions_blocked and remote_states[-1].status == "signed_out", "sign-out after a remote removal clears the latch")
+	var remote_fresh: ClerkResult = await _call(func(done: Callable) -> void: remote.begin_email_code("ok@example.test", 0, done))
+	_check(_is(remote_fresh, "CODE_SENT"), "email begin works after that sign-out")
+	remote.cancel_email_code()
+	_free(remote)
+
 
 func _test_deadline_and_cancel() -> void:
 	var clerk := _clerk()
@@ -262,11 +290,15 @@ func _test_deadline_and_cancel() -> void:
 	_check(clerk.get_child_count() == 0, "a timed-out request node is freed")
 
 	var cancelled: Array = []
-	clerk.begin_email_code("slow@example.test", 0, func(result: ClerkResult) -> void: cancelled.append(result))
+	var restarted: Array = []
+	clerk.begin_email_code("slow@example.test", 0, func(result: ClerkResult) -> void:
+		cancelled.append(result)
+		clerk.begin_email_code("ok@example.test", 0, func(inner: ClerkResult) -> void: restarted.append(inner))
+	)
 	clerk.cancel_email_code()
 	_check(cancelled.size() == 1 and _is(cancelled[0], "ERROR", "CANCELLED"), "cancel settles the in-flight begin with CANCELLED")
-	var fresh: ClerkResult = await _call(func(done: Callable) -> void: clerk.begin_email_code("ok@example.test", 0, done))
-	_check(_is(fresh, "CODE_SENT") and cancelled.size() == 1, "a new flow starts after cancel and the stale completion is dropped")
+	await _settle(restarted)
+	_check(restarted.size() == 1 and _is(restarted[0], "CODE_SENT") and cancelled.size() == 1, "a flow restarted from the CANCELLED callback starts and the stale completion is dropped")
 	clerk.cancel_email_code()
 	await _wait_ms(3500)
 	_check(cancelled.size() == 1 and clerk._relays.size() == 0 and clerk.get_child_count() == 0, "late fixture replies never reach a cancelled relay")
