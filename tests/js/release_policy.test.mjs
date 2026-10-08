@@ -56,7 +56,7 @@ test("candidate provenance is generic and is not a release", () => {
     clerkBrowserSha256: browserSha,
     version: "0.1.0",
     entries: 34,
-    clerkVersion: "6.33.0",
+    clerkVersion: "6.38.1",
   });
   assert.equal(doc.release, false);
   assert.equal(doc.isolated_test_only, true);
