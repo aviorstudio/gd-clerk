@@ -14,6 +14,7 @@ install:
 	XDG_DATA_HOME="$(CURDIR)/.artifacts/godot-data" bash scripts/install-godot-templates.sh
 	PLAYWRIGHT_BROWSERS_PATH="$(CURDIR)/.artifacts/playwright" npx --no-install playwright install chromium
 lint:
+	npm audit --audit-level=critical
 	node scripts/vendor-clerk.mjs --check
 	node scripts/scan.mjs
 	node scripts/workflow-policy.mjs
