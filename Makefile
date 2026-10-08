@@ -6,12 +6,12 @@ help:
 	@echo 'make check  Run the existing addon, browser fixture, export and installed ZIP gates'
 install:
 	mise trust .mise.toml
-	mise install node@22.20.0 python@3.13.11
+	mise install node@22.20.0 python@3.13.11 http:cicd-engineering
 	npm ci
 	mkdir -p .artifacts/bin
 	touch .artifacts/.gdignore
 	bash scripts/install-godot.sh "$(CURDIR)/.artifacts/bin/godot"
-	XDG_DATA_HOME="$(CURDIR)/.artifacts/godot-data" bash scripts/install-godot-templates.sh
+	CICD_ENGINEERING="$$(python3 scripts/engineering-bootstrap.py)" XDG_DATA_HOME="$(CURDIR)/.artifacts/godot-data" bash scripts/install-godot-templates.sh
 	PLAYWRIGHT_BROWSERS_PATH="$(CURDIR)/.artifacts/playwright" npx --no-install playwright install chromium
 lint:
 	npm audit --audit-level=high
