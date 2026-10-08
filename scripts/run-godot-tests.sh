@@ -30,4 +30,31 @@ test_status=$?
 set -e
 cat "$log"
 node scripts/reject-godot-log.mjs --require-ok "$log"
-exit "$test_status"
+if [[ "$test_status" -ne 0 ]]; then
+  exit "$test_status"
+fi
+
+# Native Frontend API backend against the loopback fixture. The fixture serves
+# plain http on 127.0.0.1; the addon accepts that only with GD_CLERK_TEST_LOOPBACK=1.
+port_file="$(mktemp "$TMPDIR/gd-clerk-fixture-port.XXXXXX")"
+rm -f "$port_file"
+python3 -I tests/native/fapi_fixture.py --port-file "$port_file" &
+fixture_pid=$!
+trap 'kill "$fixture_pid" 2>/dev/null || true' EXIT
+for _ in $(seq 1 100); do
+  [[ -s "$port_file" ]] && break
+  sleep 0.1
+done
+if [[ ! -s "$port_file" ]]; then
+  echo "fixture did not start" >&2
+  exit 1
+fi
+: >"$log"
+set +e
+GD_CLERK_TEST_LOOPBACK=1 GD_CLERK_FIXTURE_PORT="$(cat "$port_file")" timeout 180 "$godot" --headless --path . --script res://tests/native/run_native_tests.gd >"$log" 2>&1
+native_status=$?
+set -e
+cat "$log"
+node scripts/reject-godot-log.mjs --require-ok "$log"
+rm -f "$port_file"
+exit "$native_status"
