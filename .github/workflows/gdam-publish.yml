@@ -38,11 +38,13 @@ jobs:
           assert "plugin.cfg" in names and not any(n.startswith("addons/") for n in names), "not a flat GDAM asset"
           EOF
       - name: Install checksummed GDAM 0.0.8
-        uses: aviorstudio/gdam-actions/install@d735444eb470194585def44521d5d91df2260e63 # v0.0.2
+        uses: aviorstudio/gdam-actions/install@699727af05ff8da8f6816cc5c14a16b2b9470219 # v0.2.0
         with:
           version: v0.0.8
+          archive-sha256: 7ef2a325ad1416ce850a332f4380b1b290bd7a56e2a20f544536386cf64abb92
+
       - name: Publish to GDAM
-        uses: aviorstudio/gdam-actions/publish@d735444eb470194585def44521d5d91df2260e63 # v0.0.2
+        uses: aviorstudio/gdam-actions/publish@699727af05ff8da8f6816cc5c14a16b2b9470219 # v0.2.0
         with:
           tag: ${{ inputs.tag }}
           asset: "@aviorstudio_gd-clerk.gdam.zip"
