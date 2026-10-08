@@ -1,3 +1,5 @@
 [tools]
 node = "22.20.0"
 python = "3.13.11"
+
+"http:cicd-engineering" = { version = "0.14.2", url = "https://github.com/nicodes/tools/releases/download/v{{ version }}/cicd-engineering-v{{ version }}.tar.gz", checksum = "sha256:5d20d0d1a24562559abc827ff4879162083a38974ba3df9643bdc883dd97587d" }
