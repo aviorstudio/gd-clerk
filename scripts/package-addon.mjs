@@ -14,6 +14,9 @@ function walk(dir, acc = []) {
   for (const name of readdirSync(dir)) {
     const path = join(dir, name);
     const stat = statSync(path);
+    // .gdam/ is what gdam install generates (the deps file and any nested
+    // dependency copy); it is derived, never packaged.
+    if (name === ".gdam") continue;
     if (stat.isDirectory()) walk(path, acc);
     else acc.push(path);
   }
@@ -25,12 +28,12 @@ const allow = JSON.parse(readFileSync(join(root, "scripts/package-allowlist.json
 const relativeFiles = files.map((path) => relative(addon, path).replaceAll("\\", "/")).sort();
 const expected = [...allow.files].sort();
 if (
-  allow.addon_files !== 37 ||
-  allow.zip_entries !== 38 ||
-  expected.length !== 37 ||
+  allow.addon_files !== 36 ||
+  allow.zip_entries !== 37 ||
+  expected.length !== 36 ||
   relativeFiles.join("\n") !== expected.join("\n")
 ) {
-  console.error("addon files are not the closed 37-file allowlist");
+  console.error("addon files are not the closed 36-file allowlist");
   for (const name of relativeFiles) if (!expected.includes(name)) console.error("extra", name);
   for (const name of expected) if (!relativeFiles.includes(name)) console.error("missing", name);
   process.exit(1);
@@ -41,9 +44,9 @@ const entries = files.map((path) => {
   return { name, data, sha256: createHash("sha256").update(data).digest("hex") };
 });
 const manifest = {
-  plugin_version: "0.2.0",
+  plugin_version: "0.3.0",
   closed: true,
-  zip_entries: 38,
+  zip_entries: 37,
   files: entries.map(({ name, sha256, data }) => ({ path: name, sha256, bytes: data.length })),
 };
 const manifestBytes = Buffer.from(JSON.stringify(manifest, null, 2) + "\n");

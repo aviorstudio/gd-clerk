@@ -11,6 +11,8 @@ install:
 	mkdir -p .artifacts/bin
 	touch .artifacts/.gdignore
 	bash scripts/install-godot.sh "$(CURDIR)/.artifacts/bin/godot"
+	bash scripts/install-gdam.sh "$(CURDIR)/.artifacts/bin/gdam"
+	"$(CURDIR)/.artifacts/bin/gdam" install --frozen-lockfile
 	CICD_ENGINEERING="$$(python3 scripts/engineering-bootstrap.py)" XDG_DATA_HOME="$(CURDIR)/.artifacts/godot-data" bash scripts/install-godot-templates.sh
 	PLAYWRIGHT_BROWSERS_PATH="$(CURDIR)/.artifacts/playwright" npx --no-install playwright install chromium
 lint:

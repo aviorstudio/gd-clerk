@@ -4,6 +4,28 @@ extends SceneTree
 ## GD_CLERK_FIXTURE_PORT set. Prints "ok <label>" per passing check and exits 1
 ## when any check fails.
 
+## A gd-session credential adapter with per-instance memory, so tests can hold
+## independent stores. Reached through the installed dependency, not the deps
+## file: tests are not packaged and may name the project's hoisted copy.
+class MemoryCredentialAdapter extends "res://addons/@aviorstudio_gd-session/src/credential_adapter.gd":
+	var values: Dictionary[String, String] = {}
+
+	func read_value(key: String) -> Result:
+		if not values.has(key):
+			return Result.new(Status.NOT_FOUND)
+		return Result.new(Status.OK, values[key])
+
+	func write_value(key: String, value: String) -> Result:
+		if value.is_empty():
+			values.erase(key)
+		else:
+			values[key] = value
+		return Result.new(Status.OK)
+
+	func stored(key: String) -> String:
+		return values.get(key, "")
+
+
 const GdClerkScript := preload("res://addons/@aviorstudio_gd-clerk/gd_clerk.gd")
 const CORRECT_CODE := "424242"
 const CALL_TIMEOUT_MS := 15000
@@ -11,7 +33,7 @@ const CALL_TIMEOUT_MS := 15000
 var _failed := false
 var _messages: Array = []
 var _base_url := ""
-var _store := ClerkCredentialStore.new()
+var _store := MemoryCredentialAdapter.new()
 
 
 func _initialize() -> void:
@@ -49,11 +71,11 @@ func _test_configure_and_sign_in() -> void:
 	var configured: ClerkResult = await _call(func(done: Callable) -> void: clerk.configure(_config(_store), done))
 	_check(_is(configured, "CONFIGURED", "", "native_signed_out"), "configure without a stored token reports native_signed_out")
 	_check(states.size() >= 1 and not states[0].signed_in and states[0].status == "signed_out" and not states[0].protected_actions_blocked, "configure emits a signed_out session state")
-	_check(configured_sync and _store.read_value("client_token") == "", "configure completes synchronously without a request when no token is stored")
+	_check(configured_sync and _store.stored("client_token") == "", "configure completes synchronously without a request when no token is stored")
 
 	var sent: ClerkResult = await _call(func(done: Callable) -> void: clerk.begin_email_code("ok@example.test", 0, done))
 	_check(_is(sent, "CODE_SENT"), "sign-in begin reaches CODE_SENT")
-	var token_after_begin := _store.read_value("client_token")
+	var token_after_begin := _store.stored("client_token")
 	_check(token_after_begin.begins_with("dvb_"), "the client token from the Authorization response header is stored")
 
 	var wrong: ClerkResult = await _call(func(done: Callable) -> void: clerk.complete_email_code("111111", done))
@@ -74,7 +96,7 @@ func _test_configure_and_sign_in() -> void:
 	_check(_is(busy, "ERROR", "UNKNOWN") and busy.message == "An email code request is already in progress.", "a second in-flight email request is refused")
 	await _settle(busy_probe)
 	_check(busy_probe.size() == 1 and _is(busy_probe[0], "AUTHENTICATED"), "correct code reaches AUTHENTICATED")
-	var token_after_sign_in := _store.read_value("client_token")
+	var token_after_sign_in := _store.stored("client_token")
 	_check(token_after_sign_in.begins_with("dvb_") and token_after_sign_in != token_after_begin, "a rotated client token replaces the stored one")
 	_check(states.size() >= 2 and states[-1].signed_in and states[-1].status == "signed_in", "sign-in emits a signed_in session state")
 
@@ -118,18 +140,18 @@ func _test_restore() -> void:
 	_check(_is(token, "AUTHENTICATED") and token.token != "", "a restored session mints tokens")
 	_free(clerk)
 
-	var bogus := ClerkCredentialStore.new()
+	var bogus := MemoryCredentialAdapter.new()
 	bogus.write_value("client_token", "dvb_bogus")
 	var rejected_clerk := _clerk()
 	var rejected: ClerkResult = await _call(func(done: Callable) -> void: rejected_clerk.configure(_config(bogus), done))
-	_check(_is(rejected, "CONFIGURED", "", "native_token_rejected") and bogus.read_value("client_token") == "", "a rejected client token is forgotten and configure stays signed out")
+	_check(_is(rejected, "CONFIGURED", "", "native_token_rejected") and bogus.stored("client_token") == "", "a rejected client token is forgotten and configure stays signed out")
 	_free(rejected_clerk)
 
-	var clearing := ClerkCredentialStore.new()
+	var clearing := MemoryCredentialAdapter.new()
 	clearing.write_value("client_token", "dvb_clear")
 	var cleared_clerk := _clerk()
 	var cleared: ClerkResult = await _call(func(done: Callable) -> void: cleared_clerk.configure(_config(clearing), done))
-	_check(_is(cleared, "CONFIGURED", "", "native_signed_out") and clearing.read_value("client_token") == "", "an empty Authorization response header clears the stored token")
+	_check(_is(cleared, "CONFIGURED", "", "native_signed_out") and clearing.stored("client_token") == "", "an empty Authorization response header clears the stored token")
 	_free(cleared_clerk)
 
 
@@ -178,7 +200,7 @@ func _test_sign_out() -> void:
 	await _settle(first_out)
 	_check(first_out.size() == 1 and _is(first_out[0], "SIGNED_OUT", "", "native_session_removed") and _is(shared, "SIGNED_OUT", "", "native_session_removed"), "a valid ack removes the session and both sign-out callers see SIGNED_OUT")
 	_check(states[-1].status == "signed_out" and not states[-1].signed_in and not states[-1].protected_actions_blocked, "sign-out clears the latch and emits signed_out")
-	_check(_store.read_value("client_token").begins_with("dvb_"), "the client token survives sign-out")
+	_check(_store.stored("client_token").begins_with("dvb_"), "the client token survives sign-out")
 	var gone: ClerkResult = await _call(func(done: Callable) -> void: clerk.get_session_token(0, done))
 	_check(_is(gone, "ERROR", "SESSION_EXPIRED"), "token mint after sign-out is SESSION_EXPIRED without a request")
 	var fresh: ClerkResult = await _call(func(done: Callable) -> void: clerk.begin_email_code("ok@example.test", 0, done))
@@ -322,7 +344,7 @@ func _free(clerk: Node) -> void:
 	clerk.free()
 
 
-func _config(store: ClerkCredentialStore) -> ClerkConfig:
+func _config(store: MemoryCredentialAdapter) -> ClerkConfig:
 	var host := _base_url.trim_prefix("http://")
 	var config := ClerkConfig.new()
 	var encoded := Marshalls.utf8_to_base64(host + "$")
