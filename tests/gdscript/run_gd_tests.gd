@@ -1,5 +1,27 @@
 extends SceneTree
 
+## A gd-session credential adapter with per-instance memory, so tests can hold
+## independent stores. Reached through the installed dependency, not the deps
+## file: tests are not packaged and may name the project's hoisted copy.
+class MemoryCredentialAdapter extends "res://addons/@aviorstudio_gd-session/src/credential_adapter.gd":
+	var values: Dictionary[String, String] = {}
+
+	func read_value(key: String) -> Result:
+		if not values.has(key):
+			return Result.new(Status.NOT_FOUND)
+		return Result.new(Status.OK, values[key])
+
+	func write_value(key: String, value: String) -> Result:
+		if value.is_empty():
+			values.erase(key)
+		else:
+			values[key] = value
+		return Result.new(Status.OK)
+
+	func stored(key: String) -> String:
+		return values.get(key, "")
+
+
 func _init() -> void:
 	var failed := _run()
 	quit(1 if failed else 0)
@@ -132,8 +154,12 @@ func _native_helpers() -> bool:
 	var state: Dictionary = backend.session_state()
 	if state.get("status") != "unavailable" or state.get("signed_in") != false or state.get("protected_actions_blocked") != false:
 		return false
-	var store := ClerkCredentialStore.new()
-	return store.read_value("client_token") == "" and store.write_value("client_token", "dvb_1") and store.read_value("client_token") == "dvb_1" and store.write_value("client_token", "") and store.read_value("client_token") == ""
+	var store := MemoryCredentialAdapter.new()
+	if store.read_value("client_token").status != 1 or store.write_value("client_token", "dvb_1").status != 0:
+		return false
+	if store.read_value("client_token").value != "dvb_1" or store.write_value("client_token", "").status != 0:
+		return false
+	return store.read_value("client_token").status == 1
 
 func _policy() -> bool:
 	var host := "example.clerk.accounts.dev"

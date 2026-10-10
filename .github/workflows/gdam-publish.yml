@@ -49,7 +49,7 @@ jobs:
           EOF
       # Trusted publishing: the job's OIDC token is the registry credential.
       - name: Publish to GDAM
-        uses: aviorstudio/gdam-actions/publish@3d9591c34711bb408302866d1e213409c2bdc59a # v0.3.0
+        uses: aviorstudio/gdam-actions/publish@9714788996104bd4dec4fc6d5a8083f0792b8055 # v0.4.1
         with:
           tag: ${{ inputs.tag }}
           asset: "@aviorstudio_gd-clerk.gdam.zip"
