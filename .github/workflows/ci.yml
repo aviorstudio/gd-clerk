@@ -31,6 +31,10 @@ jobs:
       - run: make lint
       - run: npm test
       - run: bash scripts/install-godot.sh /usr/local/bin/godot
+      - name: Restore the addon's dependencies from gdam.lock
+        run: |
+          bash scripts/install-gdam.sh /usr/local/bin/gdam
+          gdam install --frozen-lockfile
       - name: Godot headless tests
         run: bash scripts/run-godot-tests.sh
       - name: Browser fixture (mocked Clerk, not live e2e)

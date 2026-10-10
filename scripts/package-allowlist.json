@@ -1,12 +1,10 @@
 {
-  "zip_entries": 38,
-  "addon_files": 37,
-  "note": "All 38 ZIP entries are intentional: these 37 addon files plus PACKAGE_MANIFEST.json. The ten .uid files keep Godot script UIDs stable. javascript/clerk/ is the pinned @clerk/clerk-js@6.38.1 same-directory bundle plus VENDOR.json. clerk_native_backend.gd and clerk_credential_store.gd serve non-web builds.",
+  "zip_entries": 37,
+  "addon_files": 36,
+  "note": "All 37 ZIP entries are intentional: these 36 addon files plus PACKAGE_MANIFEST.json. The ten .uid files keep Godot script UIDs stable. javascript/clerk/ is the pinned @clerk/clerk-js@6.38.1 same-directory bundle plus VENDOR.json. clerk_native_backend.gd serves non-web builds; gdam.json declares the @aviorstudio/gd-session dependency it reaches through the deps file gdam install generates (.gdam/ is never packaged).",
   "files": [
     "clerk_config.gd",
     "clerk_config.gd.uid",
-    "clerk_credential_store.gd",
-    "clerk_credential_store.gd.uid",
     "clerk_native_backend.gd",
     "clerk_native_backend.gd.uid",
     "clerk_policy.gd",
@@ -17,6 +15,7 @@
     "export_plugin.gd.uid",
     "gd_clerk.gd",
     "gd_clerk.gd.uid",
+    "gdam.json",
     "html_export.gd",
     "html_export.gd.uid",
     "javascript/clerk/10_clerk.browser_6f5e2d_6.38.1.js",

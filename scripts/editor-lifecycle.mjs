@@ -20,6 +20,12 @@ if (unpacked.status !== 0) {
   process.exit(unpacked.status || 1);
 }
 cpSync(join(root, "tests/editor/lifecycle_probe"), join(project, "addons/lifecycle_probe"), { recursive: true });
+// The installed addon reaches @aviorstudio/gd-session through the deps file
+// gdam install generates, and the zip carries neither. The fixture project
+// takes both from this repository's own install (make install / CI), where
+// gdam resolved gd-session to the same hoisted address.
+cpSync(join(root, "addons/@aviorstudio_gd-session"), join(project, "addons/@aviorstudio_gd-session"), { recursive: true });
+cpSync(join(root, "addons/@aviorstudio_gd-clerk/.gdam"), join(project, "addons/@aviorstudio_gd-clerk/.gdam"), { recursive: true });
 writeFileSync(join(project, "project.godot"), `config_version=5
 
 [application]

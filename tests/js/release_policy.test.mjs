@@ -83,9 +83,9 @@ test("GDAM publication is trusted publishing with no registry secret", () => {
     mutate("gdam-publish.yml", "permissions:\n  contents: read\n", "permissions:\n  contents: read\n  id-token: write\n", /only to the publishing jobs/);
     mutate("release.yml", "    timeout-minutes: 40\n", "    timeout-minutes: 40\n    permissions:\n      id-token: write\n", /only to the publishing jobs/);
     mutate("release.yml", "      id-token: write\n", "      id-token: write\n      GDAM_SECRET_KEY: x\n", /secret key/);
-    mutate("gdam-publish.yml", "      - name: Publish to GDAM\n", "      - uses: aviorstudio/gdam-actions/install@3d9591c34711bb408302866d1e213409c2bdc59a\n      - name: Publish to GDAM\n", /installs the GDAM CLI/);
-    mutate("gdam-publish.yml", "gdam-actions/publish@3d9591c34711bb408302866d1e213409c2bdc59a", "gdam-actions/publish@v0.3.0", /same full-SHA/);
-    mutate("gdam-publish.yml", "gdam-actions/publish@3d9591c34711bb408302866d1e213409c2bdc59a", "gdam-actions/publish@" + "0".repeat(40), /same full-SHA/);
+    mutate("gdam-publish.yml", "      - name: Publish to GDAM\n", "      - uses: aviorstudio/gdam-actions/install@9714788996104bd4dec4fc6d5a8083f0792b8055\n      - name: Publish to GDAM\n", /installs the GDAM CLI/);
+    mutate("gdam-publish.yml", "gdam-actions/publish@9714788996104bd4dec4fc6d5a8083f0792b8055", "gdam-actions/publish@v0.3.0", /same full-SHA/);
+    mutate("gdam-publish.yml", "gdam-actions/publish@9714788996104bd4dec4fc6d5a8083f0792b8055", "gdam-actions/publish@" + "0".repeat(40), /same full-SHA/);
     mutate("gdam-publish.yml", 'test "$commit" = "$GITHUB_SHA"', "true", /bind the tag commit/);
     mutate("release.yml", 'test "$commit" = "$GITHUB_SHA"', "true", /release workflow missing/);
   } finally {
@@ -99,13 +99,13 @@ test("candidate provenance is generic and is not a release", () => {
     zipSha256: sha,
     clerkBrowserSha256: browserSha,
     version: "0.1.0",
-    entries: 38,
+    entries: 37,
     clerkVersion: "6.38.1",
   });
   assert.equal(doc.release, false);
   assert.equal(doc.isolated_test_only, true);
   assert.equal(doc.schema, "gd-clerk.candidate.v1");
-  assert.throws(() => buildCandidate({ commit: "abc", zipSha256: sha, clerkBrowserSha256: browserSha, entries: 38 }));
+  assert.throws(() => buildCandidate({ commit: "abc", zipSha256: sha, clerkBrowserSha256: browserSha, entries: 37 }));
   assert.throws(() => assertReleaseIdentity({ tag: "v9.9.9", commit, version: "0.1.0" }));
   assert.doesNotThrow(() => assertReleaseIdentity({ tag: "v0.1.0", commit, version: "0.1.0" }));
 });
@@ -136,7 +136,7 @@ test("release notes are package provenance", () => {
     zipSha256: sha,
     clerkVersion: vendor.version,
     integrity: vendor.integrity,
-    entries: 38,
+    entries: 37,
   };
   const notes = renderNotes(info);
   assertNotes(notes, info);
@@ -175,7 +175,7 @@ test("native backend never sends the publishable key and keeps the bridge untouc
 test("workflows keep the publish token narrow and releases manual", () => {
   assertWorkflows(root);
   const allow = JSON.parse(readFileSync(join(root, "scripts/package-allowlist.json"), "utf8"));
-  assert.equal(allow.addon_files, 37);
-  assert.equal(allow.zip_entries, 38);
-  assert.equal(allow.files.length, 37);
+  assert.equal(allow.addon_files, 36);
+  assert.equal(allow.zip_entries, 37);
+  assert.equal(allow.files.length, 36);
 });

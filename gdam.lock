@@ -1,0 +1,30 @@
+{
+  "version": 1,
+  "requirements": {
+    "@aviorstudio/gd-session": "v0.0.3"
+  },
+  "addons": {
+    "@aviorstudio/gd-session@v0.0.3": {
+      "name": "@aviorstudio/gd-session",
+      "tag": "v0.0.3",
+      "github_owner": "aviorstudio",
+      "github_repo": "gd-session",
+      "github_release_id": 408634809,
+      "commit_sha": "ed2584201f93126d0427c1638a91d696d48f4393",
+      "asset_id": 626973899,
+      "asset_name": "@aviorstudio_gd-session.zip",
+      "asset_digest": "sha256:94fb89cd88aecf8c14aedb70f0171ccbcaba6136f101dfa526aa69ae04dee98e",
+      "published_at": "2026-10-10T04:18:01Z",
+      "prerelease": false,
+      "editor_plugin": false,
+      "installs": [
+        {
+          "path": "addons/@aviorstudio_gd-session",
+          "required_by": [
+            "gdam.json"
+          ]
+        }
+      ]
+    }
+  }
+}

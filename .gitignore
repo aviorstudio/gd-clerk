@@ -10,3 +10,6 @@ export_presets.cfg
 !tests/web/configure-harness/export_presets.cfg
 !tests/web/revoke-harness/export_presets.cfg
 __pycache__/
+# Installed by gdam install from gdam.lock; the deps file is generated.
+addons/@aviorstudio_gd-session/
+addons/@aviorstudio_gd-clerk/.gdam/

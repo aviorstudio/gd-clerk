@@ -6,7 +6,7 @@ on:
       tag:
         description: Release tag that must match package.json
         required: true
-        default: v0.2.0
+        default: v0.3.0
         type: string
 
 permissions:
@@ -72,6 +72,10 @@ jobs:
       - run: node scripts/workflow-policy.mjs
       - run: npm test
       - run: bash scripts/install-godot.sh /usr/local/bin/godot
+      - name: Restore the addon's dependencies from gdam.lock
+        run: |
+          bash scripts/install-gdam.sh /usr/local/bin/gdam
+          gdam install --frozen-lockfile
       - run: bash scripts/run-godot-tests.sh
       - name: Browser fixture (mocked Clerk, not live e2e)
         env:
@@ -198,7 +202,7 @@ jobs:
           gh release create "$RELEASE_TAG" dist/@aviorstudio_gd-clerk.zip dist/@aviorstudio_gd-clerk.zip.sha256 dist/@aviorstudio_gd-clerk.gdam.zip --target "$RELEASE_COMMIT" --title "gd-clerk $RELEASE_TAG" --notes-file dist/RELEASE_NOTES.md
       # Trusted publishing: the job's OIDC token is the registry credential.
       - name: Publish to GDAM
-        uses: aviorstudio/gdam-actions/publish@3d9591c34711bb408302866d1e213409c2bdc59a # v0.3.0
+        uses: aviorstudio/gdam-actions/publish@9714788996104bd4dec4fc6d5a8083f0792b8055 # v0.4.1
         with:
           tag: ${{ needs.test.outputs.tag }}
           asset: "@aviorstudio_gd-clerk.gdam.zip"
