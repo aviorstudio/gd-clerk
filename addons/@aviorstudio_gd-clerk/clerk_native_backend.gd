@@ -12,7 +12,7 @@ extends RefCounted
 ## a gd-session credential adapter (process memory by default).
 
 const API_VERSION := "2026-05-12"
-const ADDON_VERSION := "0.3.0"
+const ADDON_VERSION := "0.3.1"
 const TOKEN_KEY := "client_token"
 ## Dependencies are reached through the file gdam install generates, never
 ## by a res://addons path: gd-session may be hoisted beside this addon or
