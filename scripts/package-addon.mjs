@@ -44,7 +44,7 @@ const entries = files.map((path) => {
   return { name, data, sha256: createHash("sha256").update(data).digest("hex") };
 });
 const manifest = {
-  plugin_version: "0.3.0",
+  plugin_version: "0.3.1",
   closed: true,
   zip_entries: 37,
   files: entries.map(({ name, sha256, data }) => ({ path: name, sha256, bytes: data.length })),
