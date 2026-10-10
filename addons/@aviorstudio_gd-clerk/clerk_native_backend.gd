@@ -9,11 +9,17 @@ extends RefCounted
 ##
 ## The publishable key is never sent. The only credential this backend holds is
 ## the Frontend API client token, which it keeps in the consumer's
-## ClerkCredentialStore (process memory by default).
+## a gd-session credential adapter (process memory by default).
 
 const API_VERSION := "2026-05-12"
-const ADDON_VERSION := "0.2.0"
+const ADDON_VERSION := "0.3.0"
 const TOKEN_KEY := "client_token"
+## Dependencies are reached through the file gdam install generates, never
+## by a res://addons path: gd-session may be hoisted beside this addon or
+## nested inside it.
+const Deps := preload(".gdam/deps.gd")
+const STATUS_OK := 0
+const STATUS_NOT_FOUND := 1
 const MAX_BODY_BYTES := 262144
 const MAX_MESSAGE_LENGTH := 180
 const MAX_MIN_VALIDITY := 120
@@ -57,8 +63,8 @@ var resend_cooldown_ms: int = 30000
 var _config: ClerkConfig = null
 var _configured: bool = false
 var _base_url: String = ""
-var _store: ClerkCredentialStore = null
-var _memory_store: ClerkCredentialStore = ClerkCredentialStore.new()
+var _store: RefCounted = null
+var _memory_store: RefCounted = Deps.GdSession_web_memory_adapter.new()
 var _client_token: String = ""
 var _sessions: Array = []
 var _last_active_session_id: String = ""
@@ -105,7 +111,7 @@ func configure(config: ClerkConfig, relay: RefCounted) -> void:
 	_config = config
 	_base_url = config.frontend_api.strip_edges()
 	_store = config.credential_store if config.credential_store != null else _memory_store
-	_client_token = _sanitize_token(_store.read_value(TOKEN_KEY))
+	_client_token = _sanitize_token(_read_stored_token())
 	if _client_token.is_empty():
 		_configured = true
 		_clear_session()
@@ -598,6 +604,17 @@ func _remember_client_token(token: String) -> void:
 	_client_token = token
 	if _store != null:
 		_store.write_value(TOKEN_KEY, token)
+
+
+## The adapter's read answers with a status and a value; anything but OK reads
+## as no token, so an unavailable keyring starts signed out rather than failing.
+func _read_stored_token() -> String:
+	var found: Variant = _store.read_value(TOKEN_KEY)
+	if found == null or not (found is Object) or not found.has_method("get"):
+		return ""
+	if int(found.get("status")) != STATUS_OK:
+		return ""
+	return str(found.get("value"))
 
 
 func _sanitize_token(value: String) -> String:

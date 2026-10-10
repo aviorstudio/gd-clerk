@@ -11,7 +11,7 @@ export function buildCandidate(info) {
   if (!/^[0-9a-f]{40}$/.test(info.commit || "")) throw new Error("commit is not a full SHA");
   if (!/^[0-9a-f]{64}$/.test(info.zipSha256 || "")) throw new Error("zip sha256 is invalid");
   if (!/^[0-9a-f]{64}$/.test(info.clerkBrowserSha256 || "")) throw new Error("clerk bundle sha256 is invalid");
-  if (info.entries !== 38) throw new Error("candidate ZIP must have 38 entries");
+  if (info.entries !== 37) throw new Error("candidate ZIP must have 37 entries");
   const doc = {
     schema: "gd-clerk.candidate.v1",
     release: false,
