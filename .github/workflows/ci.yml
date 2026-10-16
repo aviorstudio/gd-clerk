@@ -1,4 +1,4 @@
-name: ci
+name: "CI"
 
 on:
   pull_request:
@@ -15,22 +15,29 @@ concurrency:
 
 jobs:
   test:
+    name: "Test"
     runs-on: blacksmith-2vcpu-ubuntu-2404
     timeout-minutes: 40
     steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
-      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+      - name: "Check out source"
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      - name: "Set up Node.js"
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
         with:
           node-version: "22.20.0"
           cache: npm
-      - name: Install independently pinned engineering setup
+      - name: "Set up tools"
         uses: jdx/mise-action@7a4e45a543138629540c9a1616d08632b893e492 # v5.0.1
         with:
           install_args: python http:cicd-engineering
-      - run: npm ci
-      - run: make lint
-      - run: npm test
-      - run: bash scripts/install-godot.sh /usr/local/bin/godot
+      - name: "Install dependencies"
+        run: npm ci
+      - name: "Lint"
+        run: make lint
+      - name: "Test"
+        run: npm test
+      - name: "Set up Godot"
+        run: bash scripts/install-godot.sh /usr/local/bin/godot
       - name: Restore the addon's dependencies from gdam.lock
         run: |
           bash scripts/install-gdam.sh /usr/local/bin/gdam
@@ -75,15 +82,18 @@ jobs:
           TMPDIR: /tmp/pw-tmp
           GODOT_SILENCE_ROOT_WARNING: "1"
         run: node --test tests/web/revoke_export.test.mjs
-      - run: node scripts/package-addon.mjs
-      - run: node scripts/verify-zip.mjs dist/@aviorstudio_gd-clerk.zip
+      - name: "Package addon"
+        run: node scripts/package-addon.mjs
+      - name: "Verify addon archive"
+        run: node scripts/verify-zip.mjs dist/@aviorstudio_gd-clerk.zip
       - name: Installed ZIP editor lifecycle
         run: node scripts/editor-lifecycle.mjs dist/@aviorstudio_gd-clerk.zip
       - name: Record candidate provenance
         env:
           CANDIDATE_COMMIT: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
         run: node scripts/candidate-provenance.mjs --zip dist/@aviorstudio_gd-clerk.zip --commit "$CANDIDATE_COMMIT" --out dist/CANDIDATE.json
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+      - name: "Upload artifacts"
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: gd-clerk-addon
           path: |

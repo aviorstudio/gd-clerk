@@ -1,4 +1,4 @@
-name: gdam-publish
+name: "Publish Addon"
 
 # Publishes an existing GitHub release's flat asset to GDAM. Use it when the
 # release workflow created the GitHub release but its GDAM step failed: that
@@ -19,6 +19,7 @@ permissions:
 
 jobs:
   publish:
+    name: "Publish addon"
     if: github.ref == 'refs/heads/main' || github.ref == format('refs/tags/{0}', inputs.tag)
     runs-on: blacksmith-2vcpu-ubuntu-2404
     timeout-minutes: 10
@@ -26,7 +27,8 @@ jobs:
       contents: read
       id-token: write
     steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      - name: "Check out source"
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
           fetch-depth: 0
       - name: Verify the released GDAM asset
@@ -48,7 +50,7 @@ jobs:
           assert "plugin.cfg" in names and not any(n.startswith("addons/") for n in names), "not a flat GDAM asset"
           EOF
       # Trusted publishing: the job's OIDC token is the registry credential.
-      - name: Publish to GDAM
+      - name: "Publish addon"
         uses: aviorstudio/gdam-actions/publish@9714788996104bd4dec4fc6d5a8083f0792b8055 # v0.4.1
         with:
           tag: ${{ inputs.tag }}
