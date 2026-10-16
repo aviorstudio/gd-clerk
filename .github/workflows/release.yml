@@ -1,4 +1,4 @@
-name: release
+name: "Release"
 
 on:
   workflow_dispatch:
@@ -18,13 +18,16 @@ concurrency:
 
 jobs:
   guard:
+    name: "Verify release"
     if: github.ref != 'refs/heads/main'
     runs-on: blacksmith-2vcpu-ubuntu-2404
     timeout-minutes: 10
     steps:
-      - run: echo "release only runs from main" && exit 1
+      - name: "Require main branch"
+        run: echo "release only runs from main" && exit 1
 
   test:
+    name: "Test package"
     if: github.ref == 'refs/heads/main'
     runs-on: blacksmith-2vcpu-ubuntu-2404
     timeout-minutes: 40
@@ -34,7 +37,8 @@ jobs:
       tag: ${{ steps.identity.outputs.tag }}
       version: ${{ steps.identity.outputs.version }}
     steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      - name: "Check out source"
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
           ref: main
           fetch-depth: 0
@@ -58,25 +62,33 @@ jobs:
             echo "tag=$RELEASE_TAG"
             echo "version=${RELEASE_TAG#v}"
           } >> "$GITHUB_OUTPUT"
-      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+      - name: "Set up Node.js"
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
         with:
           node-version: "22.20.0"
           cache: npm
-      - name: Install independently pinned engineering setup
+      - name: "Set up tools"
         uses: jdx/mise-action@7a4e45a543138629540c9a1616d08632b893e492 # v5.0.1
         with:
           install_args: python http:cicd-engineering
-      - run: npm ci
-      - run: node scripts/vendor-clerk.mjs --check
-      - run: node scripts/scan.mjs
-      - run: node scripts/workflow-policy.mjs
-      - run: npm test
-      - run: bash scripts/install-godot.sh /usr/local/bin/godot
+      - name: "Install dependencies"
+        run: npm ci
+      - name: "Verify vendored dependencies"
+        run: node scripts/vendor-clerk.mjs --check
+      - name: "Scan dependencies"
+        run: node scripts/scan.mjs
+      - name: "Validate workflow policy"
+        run: node scripts/workflow-policy.mjs
+      - name: "Test"
+        run: npm test
+      - name: "Set up Godot"
+        run: bash scripts/install-godot.sh /usr/local/bin/godot
       - name: Restore the addon's dependencies from gdam.lock
         run: |
           bash scripts/install-gdam.sh /usr/local/bin/gdam
           gdam install --frozen-lockfile
-      - run: bash scripts/run-godot-tests.sh
+      - name: "Run Godot tests"
+        run: bash scripts/run-godot-tests.sh
       - name: Browser fixture (mocked Clerk, not live e2e)
         env:
           PLAYWRIGHT_BROWSERS_PATH: /tmp/ms-playwright
@@ -130,7 +142,8 @@ jobs:
           echo "zip_sha256=$sha" >> "$GITHUB_OUTPUT"
       - name: Installed ZIP editor lifecycle
         run: node scripts/editor-lifecycle.mjs dist/@aviorstudio_gd-clerk.zip
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+      - name: "Upload artifacts"
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: gd-clerk-release
           if-no-files-found: error
@@ -144,6 +157,7 @@ jobs:
             dist/RELEASE_NOTES.md
 
   publish:
+    name: "Publish release"
     needs: test
     if: needs.test.result == 'success' && github.ref == 'refs/heads/main'
     runs-on: blacksmith-2vcpu-ubuntu-2404
@@ -152,7 +166,8 @@ jobs:
       contents: write
       id-token: write
     steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      - name: "Check out source"
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
           ref: ${{ needs.test.outputs.commit }}
           fetch-depth: 0
@@ -166,7 +181,8 @@ jobs:
           test "$(git rev-parse HEAD)" = "$RELEASE_COMMIT"
           test "$origin" = "$RELEASE_COMMIT"
           RELEASE_REF="$GITHUB_REF" RELEASE_HEAD="$RELEASE_COMMIT" RELEASE_ORIGIN_MAIN="$origin" node scripts/release-guard.mjs --main
-      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+      - name: "Download artifacts"
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
         with:
           name: gd-clerk-release
           path: dist
@@ -201,7 +217,7 @@ jobs:
           fi
           gh release create "$RELEASE_TAG" dist/@aviorstudio_gd-clerk.zip dist/@aviorstudio_gd-clerk.zip.sha256 dist/@aviorstudio_gd-clerk.gdam.zip --target "$RELEASE_COMMIT" --title "gd-clerk $RELEASE_TAG" --notes-file dist/RELEASE_NOTES.md
       # Trusted publishing: the job's OIDC token is the registry credential.
-      - name: Publish to GDAM
+      - name: "Publish addon"
         uses: aviorstudio/gdam-actions/publish@9714788996104bd4dec4fc6d5a8083f0792b8055 # v0.4.1
         with:
           tag: ${{ needs.test.outputs.tag }}
