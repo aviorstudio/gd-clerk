@@ -83,7 +83,7 @@ test("GDAM publication is trusted publishing with no registry secret", () => {
     mutate("gdam-publish.yml", "permissions:\n  contents: read\n", "permissions:\n  contents: read\n  id-token: write\n", /only to the publishing jobs/);
     mutate("release.yml", "    timeout-minutes: 40\n", "    timeout-minutes: 40\n    permissions:\n      id-token: write\n", /only to the publishing jobs/);
     mutate("release.yml", "      id-token: write\n", "      id-token: write\n      GDAM_SECRET_KEY: x\n", /secret key/);
-    mutate("gdam-publish.yml", "      - name: Publish to GDAM\n", "      - uses: aviorstudio/gdam-actions/install@9714788996104bd4dec4fc6d5a8083f0792b8055\n      - name: Publish to GDAM\n", /installs the GDAM CLI/);
+    mutate("gdam-publish.yml", "        uses: aviorstudio/gdam-actions/publish@9714788996104bd4dec4fc6d5a8083f0792b8055", "        uses: aviorstudio/gdam-actions/install@9714788996104bd4dec4fc6d5a8083f0792b8055\n      - uses: aviorstudio/gdam-actions/publish@9714788996104bd4dec4fc6d5a8083f0792b8055", /installs the GDAM CLI/);
     mutate("gdam-publish.yml", "gdam-actions/publish@9714788996104bd4dec4fc6d5a8083f0792b8055", "gdam-actions/publish@v0.3.0", /same full-SHA/);
     mutate("gdam-publish.yml", "gdam-actions/publish@9714788996104bd4dec4fc6d5a8083f0792b8055", "gdam-actions/publish@" + "0".repeat(40), /same full-SHA/);
     mutate("gdam-publish.yml", 'test "$commit" = "$GITHUB_SHA"', "true", /bind the tag commit/);
