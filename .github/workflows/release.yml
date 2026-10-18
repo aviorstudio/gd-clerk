@@ -63,7 +63,7 @@ jobs:
             echo "version=${RELEASE_TAG#v}"
           } >> "$GITHUB_OUTPUT"
       - name: "Set up Node.js"
-        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1
         with:
           node-version: "22.20.0"
           cache: npm
@@ -218,7 +218,7 @@ jobs:
           gh release create "$RELEASE_TAG" dist/@aviorstudio_gd-clerk.zip dist/@aviorstudio_gd-clerk.zip.sha256 dist/@aviorstudio_gd-clerk.gdam.zip --target "$RELEASE_COMMIT" --title "gd-clerk $RELEASE_TAG" --notes-file dist/RELEASE_NOTES.md
       # Trusted publishing: the job's OIDC token is the registry credential.
       - name: "Publish addon"
-        uses: aviorstudio/gdam-actions/publish@9714788996104bd4dec4fc6d5a8083f0792b8055 # v0.4.1
+        uses: aviorstudio/gdam-actions/publish@6677226d9353df1d410f3e7f5075e13b3b7d5308 # v0.5.1
         with:
           tag: ${{ needs.test.outputs.tag }}
           asset: "@aviorstudio_gd-clerk.gdam.zip"
