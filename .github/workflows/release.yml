@@ -20,7 +20,7 @@ jobs:
   guard:
     name: "Verify release"
     if: github.ref != 'refs/heads/main'
-    runs-on: blacksmith-2vcpu-ubuntu-2404
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
       - name: "Require main branch"
@@ -29,7 +29,7 @@ jobs:
   test:
     name: "Test package"
     if: github.ref == 'refs/heads/main'
-    runs-on: blacksmith-2vcpu-ubuntu-2404
+    runs-on: ubuntu-24.04
     timeout-minutes: 40
     outputs:
       commit: ${{ steps.identity.outputs.commit }}
@@ -160,7 +160,7 @@ jobs:
     name: "Publish release"
     needs: test
     if: needs.test.result == 'success' && github.ref == 'refs/heads/main'
-    runs-on: blacksmith-2vcpu-ubuntu-2404
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
     permissions:
       contents: write
