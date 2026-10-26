@@ -1,4 +1,4 @@
-<!-- Generated from private documentation source. Do not edit directly. Source SHA256: c9738e860fe2c3ecaed4dcafd3b92de30c5cdd52543094ce3980f5adfcb9861b -->
+<!-- Generated from private documentation source. Do not edit directly. Source SHA256: a4516d68209e6ddbab84a7296f9f3b03f8688bcde7e6228b2e199d3b3167ea9b -->
 
 # gd-clerk
 
@@ -50,7 +50,7 @@ The browser files under `javascript/clerk/` are the exact `6.38.1` `clerk.browse
 
 ## Tests
 
-`make test` runs the JavaScript policy tests, the headless Godot unit tests, the native suite against `tests/native/fapi_fixture.py` (a standard-library loopback Frontend API that is accepted only with `GD_CLERK_TEST_LOOPBACK=1` and `127.0.0.1`), the browser fixture, and three web export regressions. The fixture is not Clerk; live email-code proof belongs to the consuming project.
+`komizo run test` runs the JavaScript policy tests, the headless Godot unit tests, the native suite against `tests/native/fapi_fixture.py` (a standard-library loopback Frontend API that is accepted only with `GD_CLERK_TEST_LOOPBACK=1` and `127.0.0.1`), the browser fixture, and three web export regressions. The fixture is not Clerk; live email-code proof belongs to the consuming project.
 
 ## Releases
 
@@ -59,3 +59,7 @@ Releases are cut by hand: the `release` workflow runs only on `workflow_dispatch
 ### Inspector configuration
 
 Create a `ClerkConfig` resource in the FileSystem dock and save it as a `.tres` file. Edit its publishable key, frontend API URL, and allowed origins in the Inspector, then load that resource and pass it to `GdClerk.configure(config, done)`. These are public configuration values. Set the consumer's `revoke_session` callback and, on native, its `credential_store` at runtime before configuring; callbacks, stores and session tokens are never saved in the resource.
+
+## Repository development
+
+Install the [Komizo release](https://github.com/nicodes/komizo#install) matching `komizo.lock`, then run `komizo check`. The gate includes source checks, JavaScript/native/browser fixtures, three real web-export regressions and the installed ZIP editor lifecycle. `komizo run test` runs the focused suite.

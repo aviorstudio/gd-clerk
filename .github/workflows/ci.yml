@@ -1,117 +1,75 @@
-name: "Build & Test"
-
-on:
+name: Build & Test
+'on':
   pull_request:
+    types:
+    - opened
+    - synchronize
+    - reopened
+    - ready_for_review
   push:
-    branches: [main]
-
-  workflow_dispatch:
+    branches:
+    - main
+  workflow_dispatch: null
 permissions:
   contents: read
-  actions: write
-
+  attestations: read
 concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
-
 jobs:
-  test:
-    name: "Test"
+  ci:
+    name: Test
     runs-on: ubuntu-24.04
     timeout-minutes: 40
     steps:
-      - name: "Check out source"
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
-      - name: Record tested integration identity
-        if: github.event_name == 'pull_request'
-        uses: nicodes/tools/integration-identity@247267492cd455647facafcfcc6eed4c63c49c0e # v0.27.2
-        env:
-          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha }}
-      - name: Upload artifacts
-        if: github.event_name == 'pull_request'
-        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: fleet-integration-${{ github.run_id }}-${{ github.run_attempt }}
-          path: .artifacts/fleet-integration.json
-          if-no-files-found: error
-          retention-days: 7
-      - name: "Set up Node.js"
-        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1
-        with:
-          node-version: "22.20.0"
-          cache: npm
-      - name: "Set up tools"
-        uses: jdx/mise-action@9b200bcecbfd6303e69a4a261b2e09e3757440a7 # v5.2.0
-        with:
-          install_args: python http:cicd-engineering
-      - name: "Install dependencies"
-        run: npm ci
-      - name: "Lint"
-        run: make lint
-      - name: "Test"
-        run: npm test
-      - name: "Set up Godot"
-        run: bash scripts/install-godot.sh /usr/local/bin/godot
-      - name: Restore the addon's dependencies from gdam.lock
-        run: |
-          bash scripts/install-gdam.sh /usr/local/bin/gdam
-          gdam install --frozen-lockfile
-      - name: Godot headless tests
-        run: bash scripts/run-godot-tests.sh
-      - name: Browser fixture (mocked Clerk, not live e2e)
-        env:
-          PLAYWRIGHT_BROWSERS_PATH: /tmp/ms-playwright
-        run: |
-          mkdir -p /tmp/pw-tmp
-          TMPDIR=/tmp/pw-tmp npx playwright install chromium
-          TMPDIR=/tmp/pw-tmp npm run test:browser
-      - name: Install Godot web export templates
-        env:
-          XDG_DATA_HOME: /tmp/godot-data
-        run: bash scripts/install-godot-templates.sh
-      - name: Web export origin regression
-        env:
-          GODOT_BIN: /usr/local/bin/godot
-          XDG_DATA_HOME: /tmp/godot-data
-          XDG_CONFIG_HOME: /tmp/godot-config
-          PLAYWRIGHT_BROWSERS_PATH: /tmp/ms-playwright
-          TMPDIR: /tmp/pw-tmp
-          GODOT_SILENCE_ROOT_WARNING: "1"
-        run: node --test tests/web/origin_export.test.mjs
-      - name: Web export configure regression
-        env:
-          GODOT_BIN: /usr/local/bin/godot
-          XDG_DATA_HOME: /tmp/godot-data
-          XDG_CONFIG_HOME: /tmp/godot-config
-          PLAYWRIGHT_BROWSERS_PATH: /tmp/ms-playwright
-          TMPDIR: /tmp/pw-tmp
-          GODOT_SILENCE_ROOT_WARNING: "1"
-        run: node --test tests/web/configure_export.test.mjs
-      - name: Web export revoke regression
-        env:
-          GODOT_BIN: /usr/local/bin/godot
-          XDG_DATA_HOME: /tmp/godot-data
-          XDG_CONFIG_HOME: /tmp/godot-config
-          PLAYWRIGHT_BROWSERS_PATH: /tmp/ms-playwright
-          TMPDIR: /tmp/pw-tmp
-          GODOT_SILENCE_ROOT_WARNING: "1"
-        run: node --test tests/web/revoke_export.test.mjs
-      - name: "Package addon"
-        run: node scripts/package-addon.mjs
-      - name: "Verify addon archive"
-        run: node scripts/verify-zip.mjs dist/@aviorstudio_gd-clerk.zip
-      - name: Installed ZIP editor lifecycle
-        run: node scripts/editor-lifecycle.mjs dist/@aviorstudio_gd-clerk.zip
-      - name: Record candidate provenance
-        env:
-          CANDIDATE_COMMIT: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
-        run: node scripts/candidate-provenance.mjs --zip dist/@aviorstudio_gd-clerk.zip --commit "$CANDIDATE_COMMIT" --out dist/CANDIDATE.json
-      - name: "Upload artifacts"
-        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
-        with:
-          name: gd-clerk-addon
-          path: |
-            dist/@aviorstudio_gd-clerk.zip
-            dist/@aviorstudio_gd-clerk.zip.sha256
-            dist/PACKAGE_MANIFEST.json
-            dist/CANDIDATE.json
+    - name: Check out source
+      uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      with:
+        persist-credentials: false
+    - name: Set up locked Komizo
+      uses: nicodes/komizo/setup@c5f5ce398dcae5c7b3f8157e8331e7fcdf0c9e03
+      env:
+        GH_TOKEN: ${{ github.token }}
+      timeout-minutes: 5
+    - name: Record tested integration identity
+      if: github.event_name == 'pull_request'
+      env:
+        EXPECTED_HEAD: ${{ github.event.pull_request.head.sha }}
+      run: |
+        komizo exec --tools python -- bash -euo pipefail <<'KOMIZO_COMMAND'
+        python3 "$CICD_ENGINEERING/helpers/integration-identity.py"
+        KOMIZO_COMMAND
+    - name: Upload artifacts
+      if: github.event_name == 'pull_request'
+      uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+      with:
+        name: fleet-integration-${{ github.run_id }}-${{ github.run_attempt }}
+        path: .artifacts/fleet-integration.json
+        if-no-files-found: error
+        retention-days: 7
+        include-hidden-files: true
+    - name: Check project
+      uses: nicodes/komizo/run@c5f5ce398dcae5c7b3f8157e8331e7fcdf0c9e03
+      with:
+        target: check
+    - name: Record candidate provenance
+      env:
+        CANDIDATE_COMMIT: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+      run: |
+        komizo exec --tools node -- bash -euo pipefail <<'KOMIZO_COMMAND'
+        node scripts/candidate-provenance.mjs --zip dist/@aviorstudio_gd-clerk.zip --commit "$CANDIDATE_COMMIT" --out dist/CANDIDATE.json
+        KOMIZO_COMMAND
+    - name: Upload artifacts
+      uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+      with:
+        name: gd-clerk-addon
+        path: |
+          dist/@aviorstudio_gd-clerk.zip
+          dist/@aviorstudio_gd-clerk.zip.sha256
+          dist/PACKAGE_MANIFEST.json
+          dist/CANDIDATE.json
+        include-hidden-files: true
+        retention-days: 7
+        if-no-files-found: error
+    env:
+      MISE_GITHUB_TOKEN: ${{ github.token }}

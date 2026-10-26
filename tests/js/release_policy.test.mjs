@@ -3,6 +3,7 @@ import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync,
 import { tmpdir } from "node:os";
 import { join, dirname } from "node:path";
 import { test } from "node:test";
+import { parse, stringify } from "yaml";
 import { fileURLToPath } from "node:url";
 import { spawnSync } from "node:child_process";
 import { FIXED_ZIP_STAMP, zipDosStamp } from "../../scripts/zip-stamp.mjs";
@@ -43,7 +44,7 @@ test("zip stamp stays at UTC epoch in every timezone", () => {
 
 test("release publishes the tested zips to GitHub and then GDAM, only by hand", () => {
   const release = readFileSync(join(root, ".github/workflows/release.yml"), "utf8");
-  assert.match(release, /\non:\n  workflow_dispatch:\n/);
+  assert.deepEqual(Object.keys(parse(release).on), ["workflow_dispatch"]);
   assert.ok(release.indexOf("gh release create") < release.indexOf("gdam-actions/publish@"));
   assert.ok(release.includes("dist/@aviorstudio_gd-clerk.gdam.zip --target"));
   assert.ok(release.includes("sha256sum --check --strict @aviorstudio_gd-clerk.gdam.zip.sha256"));
@@ -66,28 +67,49 @@ test("GDAM publication is trusted publishing with no registry secret", () => {
     for (const name of ["release.yml", "ci.yml", "gdam-publish.yml"]) {
       copyFileSync(join(root, ".github/workflows", name), join(workflows, name));
     }
+    for (const name of ["komizo.json", "komizo.lock"]) copyFileSync(join(root, name), join(dir, name));
   };
-  const mutate = (name, from, to, expected) => {
+  const mutate = (name, change, expected) => {
     reset();
-    const text = readFileSync(join(root, ".github/workflows", name), "utf8");
-    assert.ok(text.includes(from), `${name} lacks ${from}`);
-    writeFileSync(join(workflows, name), text.replace(from, to));
+    const path = join(workflows, name);
+    const doc = parse(readFileSync(path, "utf8"));
+    change(doc);
+    writeFileSync(path, stringify(doc));
     assert.throws(() => assertWorkflows(dir), expected);
   };
   try {
     reset();
     assert.doesNotThrow(() => assertWorkflows(dir));
-    mutate("release.yml", "      id-token: write\n", "", /id-token: write/);
-    mutate("gdam-publish.yml", "      id-token: write\n", "", /id-token: write/);
-    mutate("release.yml", "permissions:\n  contents: read\n", "permissions:\n  contents: read\n  id-token: write\n", /only to the publishing jobs/);
-    mutate("gdam-publish.yml", "permissions:\n  contents: read\n", "permissions:\n  contents: read\n  id-token: write\n", /only to the publishing jobs/);
-    mutate("release.yml", "    timeout-minutes: 40\n", "    timeout-minutes: 40\n    permissions:\n      id-token: write\n", /only to the publishing jobs/);
-    mutate("release.yml", "      id-token: write\n", "      id-token: write\n      GDAM_SECRET_KEY: x\n", /secret key/);
-    mutate("gdam-publish.yml", "        uses: aviorstudio/gdam-actions/publish@6677226d9353df1d410f3e7f5075e13b3b7d5308", "        uses: aviorstudio/gdam-actions/install@6677226d9353df1d410f3e7f5075e13b3b7d5308\n      - uses: aviorstudio/gdam-actions/publish@6677226d9353df1d410f3e7f5075e13b3b7d5308", /installs the GDAM CLI/);
-    mutate("gdam-publish.yml", "gdam-actions/publish@6677226d9353df1d410f3e7f5075e13b3b7d5308", "gdam-actions/publish@v0.3.0", /same full-SHA/);
-    mutate("gdam-publish.yml", "gdam-actions/publish@6677226d9353df1d410f3e7f5075e13b3b7d5308", "gdam-actions/publish@" + "0".repeat(40), /same full-SHA/);
-    mutate("gdam-publish.yml", 'test "$commit" = "$GITHUB_SHA"', "true", /bind the tag commit/);
-    mutate("release.yml", 'test "$commit" = "$GITHUB_SHA"', "true", /release workflow missing/);
+    for (const name of ["release.yml", "gdam-publish.yml"]) {
+      mutate(name, (doc) => { delete doc.jobs.publish.permissions["id-token"]; }, /id-token: write/);
+      mutate(name, (doc) => { doc.permissions["id-token"] = "write"; }, /only to the publishing jobs/);
+    }
+    mutate("release.yml", (doc) => { doc.jobs.test.permissions["id-token"] = "write"; }, /only to the publishing jobs/);
+    mutate("release.yml", (doc) => { doc.jobs.publish.env = { GDAM_SECRET_KEY: "x" }; }, /secret key/);
+    const publisher = (doc) => doc.jobs.publish.steps.find((step) => step.uses?.includes("gdam-actions/publish@"));
+    mutate("gdam-publish.yml", (doc) => { doc.jobs.publish.steps.push({ uses: "aviorstudio/gdam-actions/install@" + "a".repeat(40) }); }, /installs the GDAM CLI/);
+    mutate("gdam-publish.yml", (doc) => { publisher(doc).uses = "aviorstudio/gdam-actions/publish@v0.3.0"; }, /same full-SHA/);
+    mutate("gdam-publish.yml", (doc) => { publisher(doc).uses = "aviorstudio/gdam-actions/publish@" + "0".repeat(40); }, /same full-SHA/);
+    for (const name of ["release.yml", "gdam-publish.yml"]) {
+      mutate(name, (doc) => {
+        for (const job of Object.values(doc.jobs)) for (const step of job.steps ?? []) {
+          if (step.run) step.run = step.run.replace('test "$commit" = "$GITHUB_SHA"', '# test "$commit" = "$GITHUB_SHA"');
+        }
+      }, name === "release.yml" ? /release workflow missing/ : /bind the tag commit/);
+    }
+    const native = (doc) => doc.jobs.ci.steps.find((step) => step.uses?.includes("nicodes/komizo/run@"));
+    mutate("ci.yml", (doc) => { native(doc).with.target = "lint"; }, /complete locked Komizo gate/);
+    mutate("ci.yml", (doc) => { native(doc).if = "false"; }, /complete locked Komizo gate/);
+    mutate("ci.yml", (doc) => { native(doc).with.base = "a".repeat(40); }, /complete locked Komizo gate/);
+    mutate("ci.yml", (doc) => { doc.jobs.ci.steps.find((step) => step.uses?.includes("nicodes/komizo/setup@")).uses = "nicodes/komizo/setup@" + "0".repeat(40); }, /complete locked Komizo gate/);
+    reset();
+    const projectPath = join(dir, "komizo.json");
+    const project = JSON.parse(readFileSync(projectPath, "utf8"));
+    project.stages.unit.pop();
+    writeFileSync(projectPath, JSON.stringify(project));
+    assert.throws(() => assertWorkflows(dir), /every native\/browser\/web export regression/);
+    reset();
+    assert.doesNotThrow(() => assertWorkflows(dir));
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
