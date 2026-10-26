@@ -1,7 +1,7 @@
 name: "Publish Addon"
 
-# Publishes an existing GitHub release's flat asset to GDAM. Use it when the
-# release workflow created the GitHub release but its GDAM step failed: that
+# Publishes an existing GitHub release's flat asset to gdam. Use it when the
+# release workflow created the GitHub release but its gdam step failed: that
 # workflow refuses to replace a release, so it cannot be re-run for the same tag.
 # The registry only accepts the commit this run checked out, so dispatch it
 # either from main while the tag is still main's head, or from the tag itself
@@ -10,7 +10,7 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: Existing release tag to publish to GDAM
+        description: Existing release tag to publish to gdam
         required: true
         type: string
 
@@ -31,7 +31,7 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           fetch-depth: 0
-      - name: Verify the released GDAM asset
+      - name: Verify the released gdam asset
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           RELEASE_TAG: ${{ inputs.tag }}
@@ -47,7 +47,7 @@ jobs:
           python3 - <<'EOF'
           import zipfile
           names = zipfile.ZipFile("dist/@aviorstudio_gd-clerk.gdam.zip").namelist()
-          assert "plugin.cfg" in names and not any(n.startswith("addons/") for n in names), "not a flat GDAM asset"
+          assert "plugin.cfg" in names and not any(n.startswith("addons/") for n in names), "not a flat gdam asset"
           EOF
       # Trusted publishing: the job's OIDC token is the registry credential.
       - name: "Publish addon"

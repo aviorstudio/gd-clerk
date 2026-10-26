@@ -65,7 +65,7 @@ writeFileSync(join(dist, "PACKAGE_MANIFEST.json"), manifestBytes);
 console.log(sha);
 verifyZip(zipPath);
 
-// GDAM installs a release asset only when plugin.cfg sits at the archive root,
+// gdam installs a release asset only when plugin.cfg sits at the archive root,
 // so the registry gets the same addon files without the addons/ prefix or the
 // project-root manifest.
 const gdamPrefix = "addons/@aviorstudio_gd-clerk/";
