@@ -42,7 +42,7 @@ test("zip stamp stays at UTC epoch in every timezone", () => {
   }
 });
 
-test("release publishes the tested zips to GitHub and then GDAM, only by hand", () => {
+test("release publishes the tested zips to GitHub and then gdam, only by hand", () => {
   const release = readFileSync(join(root, ".github/workflows/release.yml"), "utf8");
   assert.deepEqual(Object.keys(parse(release).on), ["workflow_dispatch"]);
   assert.ok(release.indexOf("gh release create") < release.indexOf("gdam-actions/publish@"));
@@ -51,7 +51,7 @@ test("release publishes the tested zips to GitHub and then GDAM, only by hand", 
   assert.equal(existsSync(join(root, "scripts/release-hold.mjs")), false);
 });
 
-test("GDAM publication is trusted publishing with no registry secret", () => {
+test("gdam publication is trusted publishing with no registry secret", () => {
   const release = readFileSync(join(root, ".github/workflows/release.yml"), "utf8");
   const recovery = readFileSync(join(root, ".github/workflows/gdam-publish.yml"), "utf8");
   for (const text of [release, recovery]) {
@@ -87,7 +87,7 @@ test("GDAM publication is trusted publishing with no registry secret", () => {
     mutate("release.yml", (doc) => { doc.jobs.test.permissions["id-token"] = "write"; }, /only to the publishing jobs/);
     mutate("release.yml", (doc) => { doc.jobs.publish.env = { GDAM_SECRET_KEY: "x" }; }, /secret key/);
     const publisher = (doc) => doc.jobs.publish.steps.find((step) => step.uses?.includes("gdam-actions/publish@"));
-    mutate("gdam-publish.yml", (doc) => { doc.jobs.publish.steps.push({ uses: "aviorstudio/gdam-actions/install@" + "a".repeat(40) }); }, /installs the GDAM CLI/);
+    mutate("gdam-publish.yml", (doc) => { doc.jobs.publish.steps.push({ uses: "aviorstudio/gdam-actions/install@" + "a".repeat(40) }); }, /installs the gdam CLI/);
     mutate("gdam-publish.yml", (doc) => { publisher(doc).uses = "aviorstudio/gdam-actions/publish@v0.3.0"; }, /same full-SHA/);
     mutate("gdam-publish.yml", (doc) => { publisher(doc).uses = "aviorstudio/gdam-actions/publish@" + "0".repeat(40); }, /same full-SHA/);
     for (const name of ["release.yml", "gdam-publish.yml"]) {
@@ -98,10 +98,10 @@ test("GDAM publication is trusted publishing with no registry secret", () => {
       }, name === "release.yml" ? /release workflow missing/ : /bind the tag commit/);
     }
     const native = (doc) => doc.jobs.ci.steps.find((step) => step.uses?.includes("nicodes/komizo/run@"));
-    mutate("ci.yml", (doc) => { native(doc).with.target = "lint"; }, /complete locked Komizo gate/);
-    mutate("ci.yml", (doc) => { native(doc).if = "false"; }, /complete locked Komizo gate/);
-    mutate("ci.yml", (doc) => { native(doc).with.base = "a".repeat(40); }, /complete locked Komizo gate/);
-    mutate("ci.yml", (doc) => { doc.jobs.ci.steps.find((step) => step.uses?.includes("nicodes/komizo/setup@")).uses = "nicodes/komizo/setup@" + "0".repeat(40); }, /complete locked Komizo gate/);
+    mutate("ci.yml", (doc) => { native(doc).with.target = "lint"; }, /complete locked komizo gate/);
+    mutate("ci.yml", (doc) => { native(doc).if = "false"; }, /complete locked komizo gate/);
+    mutate("ci.yml", (doc) => { native(doc).with.base = "a".repeat(40); }, /complete locked komizo gate/);
+    mutate("ci.yml", (doc) => { doc.jobs.ci.steps.find((step) => step.uses?.includes("nicodes/komizo/setup@")).uses = "nicodes/komizo/setup@" + "0".repeat(40); }, /complete locked komizo gate/);
     reset();
     const projectPath = join(dir, "komizo.json");
     const project = JSON.parse(readFileSync(projectPath, "utf8"));

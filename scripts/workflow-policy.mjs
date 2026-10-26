@@ -28,7 +28,7 @@ function assertNativeGate(doc, jobName, revision) {
       || doc.defaults?.run?.["working-directory"] || job.defaults?.run?.["working-directory"]
       || !steps.slice(0, index).some((step) => step.uses === `nicodes/komizo/setup@${revision}` && unconditional(step)
         && Object.keys(step.with ?? {}).length === 0)) {
-    throw new Error(`${jobName} must run the unconditional complete locked Komizo gate after matching setup`);
+    throw new Error(`${jobName} must run the unconditional complete locked komizo gate after matching setup`);
   }
 }
 
@@ -64,13 +64,13 @@ export function assertWorkflows(root) {
       if (name !== "publish" && job.permissions?.["id-token"] !== undefined) throw new Error("id-token must be granted only to the publishing jobs");
     }
     const text = JSON.stringify(doc);
-    if (/GDAM_SECRET_KEY|secret-key/.test(text)) throw new Error("workflow must not use a GDAM secret key");
-    if (/gdam-actions\/install@/.test(text)) throw new Error("workflow installs the GDAM CLI, which publishing no longer needs");
+    if (/GDAM_SECRET_KEY|secret-key/.test(text)) throw new Error("workflow must not use a gdam secret key");
+    if (/gdam-actions\/install@/.test(text)) throw new Error("workflow installs the gdam CLI, which publishing no longer needs");
   }
   if (release.jobs.test.permissions?.contents === "write") throw new Error("test job must not have contents: write");
   const publishing = [release.jobs.publish, recovery.jobs.publish];
   for (const [index, job] of publishing.entries()) {
-    if (job.permissions?.["id-token"] !== "write") throw new Error("publish job must grant id-token: write for GDAM trusted publishing");
+    if (job.permissions?.["id-token"] !== "write") throw new Error("publish job must grant id-token: write for gdam trusted publishing");
     if (index === 0 && job.permissions?.contents !== "write") throw new Error("publish job must grant contents: write");
     if (job.permissions?.actions === "write" || job.environment !== undefined) throw new Error("publish job must use only GITHUB_TOKEN contents: write");
   }
@@ -78,7 +78,7 @@ export function assertWorkflows(root) {
   if (pins.some((steps) => steps.length !== 1 || !/^aviorstudio\/gdam-actions\/publish@[0-9a-f]{40}$/.test(steps[0].uses))
       || pins[0][0].uses !== pins[1][0].uses) throw new Error("release and gdam-publish must pin the same full-SHA gdam-actions/publish");
   for (const steps of pins) {
-    if (steps[0].with?.asset !== "@aviorstudio_gd-clerk.gdam.zip") throw new Error("GDAM must publish the flat addon asset");
+    if (steps[0].with?.asset !== "@aviorstudio_gd-clerk.gdam.zip") throw new Error("gdam must publish the flat addon asset");
   }
   // Token references belong to step env, rather than executable shell text.
   for (const job of publishing) {
@@ -96,7 +96,7 @@ export function assertWorkflows(root) {
   const publisher = release.jobs.publish;
   const createAt = publisher.steps.findIndex((step) => step.run?.includes("gh release create"));
   const gdamAt = publisher.steps.findIndex((step) => step === pins[0][0]);
-  if (createAt < 0 || gdamAt <= createAt) throw new Error("GDAM publish must follow the GitHub release it points at");
+  if (createAt < 0 || gdamAt <= createAt) throw new Error("gdam publish must follow the GitHub release it points at");
   for (const text of [commands(release.jobs.test), commands(publisher)]) requireText(text, "node scripts/release-guard.mjs --main");
   for (const value of ["sha256sum --check --strict @aviorstudio_gd-clerk.zip.sha256", "sha256sum --check --strict @aviorstudio_gd-clerk.gdam.zip.sha256", "gh release create"]) requireText(commands(publisher), value);
   requireText(JSON.stringify(ci.jobs.ci), "github.event.pull_request.head.sha", "CI candidate provenance must bind the branch commit, not the merge commit");

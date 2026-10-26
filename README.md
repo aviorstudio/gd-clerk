@@ -1,4 +1,4 @@
-<!-- Generated from private documentation source. Do not edit directly. Source SHA256: a4516d68209e6ddbab84a7296f9f3b03f8688bcde7e6228b2e199d3b3167ea9b -->
+<!-- Generated from private documentation source. Do not edit directly. Source SHA256: 6b7c15b2efc265371f58a643ad667bf4bb35d059ce4a443f0c6e081cc511390e -->
 
 # gd-clerk
 
@@ -6,7 +6,7 @@ Godot 4.7 addon for Clerk email-code sign-in and sign-up. Web exports use the pi
 
 The checked-in source uses this SDK; existing published releases retain their original packaged SDK.
 
-Install with GDAM (`"@aviorstudio/gd-clerk": {"tag": "v0.3.0"}` in `gdam.json`), by copying `addons/@aviorstudio_gd-clerk/` into a Godot project, or by unzipping a release's `@aviorstudio_gd-clerk.zip` at the project root. The ZIP has 38 intentional entries: the 37 addon files in `scripts/package-allowlist.json`, including Godot `.uid` files and the pinned Clerk same-directory bundle, plus `PACKAGE_MANIFEST.json`. Enable the `GdClerk` plugin to add the optional `GdClerk` autoload and the web export injector. The script can also be instanced without the plugin; on native it must be inside the scene tree because requests run as child `HTTPRequest` nodes.
+Install with gdam (`"@aviorstudio/gd-clerk": {"tag": "v0.3.0"}` in `gdam.json`), by copying `addons/@aviorstudio_gd-clerk/` into a Godot project, or by unzipping a release's `@aviorstudio_gd-clerk.zip` at the project root. The ZIP has 38 intentional entries: the 37 addon files in `scripts/package-allowlist.json`, including Godot `.uid` files and the pinned Clerk same-directory bundle, plus `PACKAGE_MANIFEST.json`. Enable the `GdClerk` plugin to add the optional `GdClerk` autoload and the web export injector. The script can also be instanced without the plugin; on native it must be inside the scene tree because requests run as child `HTTPRequest` nodes.
 
 ## Platforms
 
@@ -54,7 +54,7 @@ The browser files under `javascript/clerk/` are the exact `6.38.1` `clerk.browse
 
 ## Releases
 
-Releases are cut by hand: the `release` workflow runs only on `workflow_dispatch` from `main` and re-runs every test, scan and web export regression against that commit before it publishes. Each release attaches the project-root ZIP, its checksum, and `@aviorstudio_gd-clerk.gdam.zip` (the same 37 addon files with `plugin.cfg` at the archive root), then publishes that flat ZIP to the GDAM registry. The bridge loads the Clerk bundle from beside its own script, so an export served from a subdirectory works. This addon is game-agnostic. The browser fixture mocks the Smart challenge and does not claim interactive challenge completion.
+Releases are cut by hand: the `release` workflow runs only on `workflow_dispatch` from `main` and re-runs every test, scan and web export regression against that commit before it publishes. Each release attaches the project-root ZIP, its checksum, and `@aviorstudio_gd-clerk.gdam.zip` (the same 37 addon files with `plugin.cfg` at the archive root), then publishes that flat ZIP to the gdam registry. The bridge loads the Clerk bundle from beside its own script, so an export served from a subdirectory works. This addon is game-agnostic. The browser fixture mocks the Smart challenge and does not claim interactive challenge completion.
 
 ### Inspector configuration
 
@@ -62,4 +62,4 @@ Create a `ClerkConfig` resource in the FileSystem dock and save it as a `.tres` 
 
 ## Repository development
 
-Install the [Komizo release](https://github.com/nicodes/komizo#install) matching `komizo.lock`, then run `komizo check`. The gate includes source checks, JavaScript/native/browser fixtures, three real web-export regressions and the installed ZIP editor lifecycle. `komizo run test` runs the focused suite.
+Install the [komizo release](https://github.com/nicodes/komizo#install) matching `komizo.lock`, then run `komizo check`. The gate includes source checks, JavaScript/native/browser fixtures, three real web-export regressions and the installed ZIP editor lifecycle. `komizo run test` runs the focused suite.
