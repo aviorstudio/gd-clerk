@@ -1,6 +1,5 @@
-name: "Release"
-
-on:
+name: Release
+'on':
   workflow_dispatch:
     inputs:
       tag:
@@ -8,26 +7,22 @@ on:
         required: true
         default: v0.3.1
         type: string
-
 permissions:
   contents: read
-
 concurrency:
   group: release-${{ github.repository }}
   cancel-in-progress: false
-
 jobs:
   guard:
-    name: "Verify release"
+    name: Verify release
     if: github.ref != 'refs/heads/main'
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
-      - name: "Require main branch"
-        run: echo "release only runs from main" && exit 1
-
+    - name: Require main branch
+      run: echo "release only runs from main" && exit 1
   test:
-    name: "Test package"
+    name: Test package
     if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-24.04
     timeout-minutes: 40
@@ -37,127 +32,78 @@ jobs:
       tag: ${{ steps.identity.outputs.tag }}
       version: ${{ steps.identity.outputs.version }}
     steps:
-      - name: "Check out source"
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
-        with:
-          ref: main
-          fetch-depth: 0
-      - name: Require main
-        id: identity
-        env:
-          RELEASE_TAG: ${{ inputs.tag }}
-        run: |
-          set -euo pipefail
-          git fetch origin main
-          commit="$(git rev-parse HEAD)"
-          origin="$(git rev-parse origin/main)"
-          test "$commit" = "$origin"
-          # A push between dispatch and checkout would test a newer commit
-          # than the one the run (and its OIDC token) is bound to.
-          test "$commit" = "$GITHUB_SHA"
-          RELEASE_REF="$GITHUB_REF" RELEASE_HEAD="$commit" RELEASE_ORIGIN_MAIN="$origin" node scripts/release-guard.mjs --main
-          RELEASE_COMMIT="$commit" node scripts/check-release-identity.mjs
-          {
-            echo "commit=$commit"
-            echo "tag=$RELEASE_TAG"
-            echo "version=${RELEASE_TAG#v}"
-          } >> "$GITHUB_OUTPUT"
-      - name: "Set up Node.js"
-        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1
-        with:
-          node-version: "22.20.0"
-          cache: npm
-      - name: "Set up tools"
-        uses: jdx/mise-action@9b200bcecbfd6303e69a4a261b2e09e3757440a7 # v5.2.0
-        with:
-          install_args: python http:cicd-engineering
-      - name: "Install dependencies"
-        run: npm ci
-      - name: "Verify vendored dependencies"
-        run: node scripts/vendor-clerk.mjs --check
-      - name: "Scan dependencies"
-        run: node scripts/scan.mjs
-      - name: "Validate workflow policy"
-        run: node scripts/workflow-policy.mjs
-      - name: "Test"
-        run: npm test
-      - name: "Set up Godot"
-        run: bash scripts/install-godot.sh /usr/local/bin/godot
-      - name: Restore the addon's dependencies from gdam.lock
-        run: |
-          bash scripts/install-gdam.sh /usr/local/bin/gdam
-          gdam install --frozen-lockfile
-      - name: "Run Godot tests"
-        run: bash scripts/run-godot-tests.sh
-      - name: Browser fixture (mocked Clerk, not live e2e)
-        env:
-          PLAYWRIGHT_BROWSERS_PATH: /tmp/ms-playwright
-        run: |
-          mkdir -p /tmp/pw-tmp
-          TMPDIR=/tmp/pw-tmp npx playwright install chromium
-          TMPDIR=/tmp/pw-tmp npm run test:browser
-      - name: Install Godot web export templates
-        env:
-          XDG_DATA_HOME: /tmp/godot-data
-        run: bash scripts/install-godot-templates.sh
-      - name: Web export origin regression
-        env:
-          GODOT_BIN: /usr/local/bin/godot
-          XDG_DATA_HOME: /tmp/godot-data
-          XDG_CONFIG_HOME: /tmp/godot-config
-          PLAYWRIGHT_BROWSERS_PATH: /tmp/ms-playwright
-          TMPDIR: /tmp/pw-tmp
-          GODOT_SILENCE_ROOT_WARNING: "1"
-        run: node --test tests/web/origin_export.test.mjs
-      - name: Web export configure regression
-        env:
-          GODOT_BIN: /usr/local/bin/godot
-          XDG_DATA_HOME: /tmp/godot-data
-          XDG_CONFIG_HOME: /tmp/godot-config
-          PLAYWRIGHT_BROWSERS_PATH: /tmp/ms-playwright
-          TMPDIR: /tmp/pw-tmp
-          GODOT_SILENCE_ROOT_WARNING: "1"
-        run: node --test tests/web/configure_export.test.mjs
-      - name: Web export revoke regression
-        env:
-          GODOT_BIN: /usr/local/bin/godot
-          XDG_DATA_HOME: /tmp/godot-data
-          XDG_CONFIG_HOME: /tmp/godot-config
-          PLAYWRIGHT_BROWSERS_PATH: /tmp/ms-playwright
-          TMPDIR: /tmp/pw-tmp
-          GODOT_SILENCE_ROOT_WARNING: "1"
-        run: node --test tests/web/revoke_export.test.mjs
-      - name: Package the closed addon and record provenance
-        id: package
-        env:
-          RELEASE_TAG: ${{ steps.identity.outputs.tag }}
-          RELEASE_COMMIT: ${{ steps.identity.outputs.commit }}
-        run: |
-          set -euo pipefail
-          node scripts/package-addon.mjs
-          node scripts/verify-zip.mjs dist/@aviorstudio_gd-clerk.zip
-          sha="$(awk '{print $1}' dist/@aviorstudio_gd-clerk.zip.sha256)"
-          node scripts/candidate-provenance.mjs --zip dist/@aviorstudio_gd-clerk.zip --commit "$RELEASE_COMMIT" --out dist/CANDIDATE.json
-          PACKAGE_SHA256="$sha" node scripts/release-notes.mjs --tag "$RELEASE_TAG" --commit "$RELEASE_COMMIT" --zip-sha256 "$sha" --out dist/RELEASE_NOTES.md
-          echo "zip_sha256=$sha" >> "$GITHUB_OUTPUT"
-      - name: Installed ZIP editor lifecycle
-        run: node scripts/editor-lifecycle.mjs dist/@aviorstudio_gd-clerk.zip
-      - name: "Upload artifacts"
-        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
-        with:
-          name: gd-clerk-release
-          if-no-files-found: error
-          path: |
-            dist/@aviorstudio_gd-clerk.zip
-            dist/@aviorstudio_gd-clerk.zip.sha256
-            dist/@aviorstudio_gd-clerk.gdam.zip
-            dist/@aviorstudio_gd-clerk.gdam.zip.sha256
-            dist/PACKAGE_MANIFEST.json
-            dist/CANDIDATE.json
-            dist/RELEASE_NOTES.md
-
+    - name: Check out source
+      uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      with:
+        ref: main
+        fetch-depth: 0
+        persist-credentials: false
+    - name: Set up locked Komizo
+      uses: nicodes/komizo/setup@c5f5ce398dcae5c7b3f8157e8331e7fcdf0c9e03
+      env:
+        GH_TOKEN: ${{ github.token }}
+      timeout-minutes: 5
+    - name: Require main
+      id: identity
+      env:
+        RELEASE_TAG: ${{ inputs.tag }}
+      run: |
+        komizo exec --tools node -- bash -euo pipefail <<'KOMIZO_COMMAND'
+        set -euo pipefail
+        git fetch origin main
+        commit="$(git rev-parse HEAD)"
+        origin="$(git rev-parse origin/main)"
+        test "$commit" = "$origin"
+        # A push between dispatch and checkout would test a newer commit
+        # than the one the run (and its OIDC token) is bound to.
+        test "$commit" = "$GITHUB_SHA"
+        RELEASE_REF="$GITHUB_REF" RELEASE_HEAD="$commit" RELEASE_ORIGIN_MAIN="$origin" node scripts/release-guard.mjs --main
+        RELEASE_COMMIT="$commit" node scripts/check-release-identity.mjs
+        {
+          echo "commit=$commit"
+          echo "tag=$RELEASE_TAG"
+          echo "version=${RELEASE_TAG#v}"
+        } >> "$GITHUB_OUTPUT"
+        KOMIZO_COMMAND
+    - name: Check project
+      uses: nicodes/komizo/run@c5f5ce398dcae5c7b3f8157e8331e7fcdf0c9e03
+      with:
+        target: check
+    - name: Package the closed addon and record provenance
+      id: package
+      env:
+        RELEASE_TAG: ${{ steps.identity.outputs.tag }}
+        RELEASE_COMMIT: ${{ steps.identity.outputs.commit }}
+      run: |
+        komizo exec --tools node -- bash -euo pipefail <<'KOMIZO_COMMAND'
+        set -euo pipefail
+        sha="$(awk '{print $1}' dist/@aviorstudio_gd-clerk.zip.sha256)"
+        node scripts/candidate-provenance.mjs --zip dist/@aviorstudio_gd-clerk.zip --commit "$RELEASE_COMMIT" --out dist/CANDIDATE.json
+        PACKAGE_SHA256="$sha" node scripts/release-notes.mjs --tag "$RELEASE_TAG" --commit "$RELEASE_COMMIT" --zip-sha256 "$sha" --out dist/RELEASE_NOTES.md
+        echo "zip_sha256=$sha" >> "$GITHUB_OUTPUT"
+        KOMIZO_COMMAND
+    - name: Upload artifacts
+      uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+      with:
+        name: gd-clerk-release
+        if-no-files-found: error
+        path: |
+          dist/@aviorstudio_gd-clerk.zip
+          dist/@aviorstudio_gd-clerk.zip.sha256
+          dist/@aviorstudio_gd-clerk.gdam.zip
+          dist/@aviorstudio_gd-clerk.gdam.zip.sha256
+          dist/PACKAGE_MANIFEST.json
+          dist/CANDIDATE.json
+          dist/RELEASE_NOTES.md
+        retention-days: 7
+        include-hidden-files: true
+    permissions:
+      contents: read
+      attestations: read
+    env:
+      MISE_GITHUB_TOKEN: ${{ github.token }}
   publish:
-    name: "Publish release"
+    name: Publish release
     needs: test
     if: needs.test.result == 'success' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-24.04
@@ -166,59 +112,57 @@ jobs:
       contents: write
       id-token: write
     steps:
-      - name: "Check out source"
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
-        with:
-          ref: ${{ needs.test.outputs.commit }}
-          fetch-depth: 0
-      - name: Require the tested main commit
-        env:
-          RELEASE_COMMIT: ${{ needs.test.outputs.commit }}
-        run: |
-          set -euo pipefail
-          git fetch origin main
-          origin="$(git rev-parse origin/main)"
-          test "$(git rev-parse HEAD)" = "$RELEASE_COMMIT"
-          test "$origin" = "$RELEASE_COMMIT"
-          RELEASE_REF="$GITHUB_REF" RELEASE_HEAD="$RELEASE_COMMIT" RELEASE_ORIGIN_MAIN="$origin" node scripts/release-guard.mjs --main
-      - name: "Download artifacts"
-        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
-        with:
-          name: gd-clerk-release
-          path: dist
-      - name: Verify tested artifact identity
-        env:
-          PACKAGE_SHA256: ${{ needs.test.outputs.zip_sha256 }}
-        run: |
-          set -euo pipefail
-          (cd dist && sha256sum --check --strict @aviorstudio_gd-clerk.zip.sha256)
-          node scripts/release-guard.mjs --checksum dist/@aviorstudio_gd-clerk.zip.sha256
-          actual="$(sha256sum dist/@aviorstudio_gd-clerk.zip | awk '{print $1}')"
-          test "$actual" = "$PACKAGE_SHA256"
-          node scripts/verify-zip.mjs dist/@aviorstudio_gd-clerk.zip
-      # Releasing is a manual workflow_dispatch from main; that dispatch is the
-      # owner's sign-off. Live email-code proof belongs to the consuming game.
-      - name: Verify the GDAM asset
-        run: |
-          set -euo pipefail
-          (cd dist && sha256sum --check --strict @aviorstudio_gd-clerk.gdam.zip.sha256)
-      - name: Publish the exact tested ZIP
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          RELEASE_TAG: ${{ needs.test.outputs.tag }}
-          RELEASE_COMMIT: ${{ needs.test.outputs.commit }}
-        run: |
-          set -euo pipefail
-          test -n "${GH_TOKEN}"
-          test "$(git rev-parse HEAD)" = "$RELEASE_COMMIT"
-          if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
-            echo "release already exists; refusing to replace it"
-            exit 1
-          fi
-          gh release create "$RELEASE_TAG" dist/@aviorstudio_gd-clerk.zip dist/@aviorstudio_gd-clerk.zip.sha256 dist/@aviorstudio_gd-clerk.gdam.zip --target "$RELEASE_COMMIT" --title "gd-clerk $RELEASE_TAG" --notes-file dist/RELEASE_NOTES.md
-      # Trusted publishing: the job's OIDC token is the registry credential.
-      - name: "Publish addon"
-        uses: aviorstudio/gdam-actions/publish@6677226d9353df1d410f3e7f5075e13b3b7d5308 # v0.5.1
-        with:
-          tag: ${{ needs.test.outputs.tag }}
-          asset: "@aviorstudio_gd-clerk.gdam.zip"
+    - name: Check out source
+      uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      with:
+        ref: ${{ needs.test.outputs.commit }}
+        fetch-depth: 0
+        persist-credentials: false
+    - name: Require the tested main commit
+      env:
+        RELEASE_COMMIT: ${{ needs.test.outputs.commit }}
+      run: |
+        set -euo pipefail
+        git fetch origin main
+        origin="$(git rev-parse origin/main)"
+        test "$(git rev-parse HEAD)" = "$RELEASE_COMMIT"
+        test "$origin" = "$RELEASE_COMMIT"
+        RELEASE_REF="$GITHUB_REF" RELEASE_HEAD="$RELEASE_COMMIT" RELEASE_ORIGIN_MAIN="$origin" node scripts/release-guard.mjs --main
+    - name: Download artifacts
+      uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
+      with:
+        name: gd-clerk-release
+        path: dist
+    - name: Verify tested artifact identity
+      env:
+        PACKAGE_SHA256: ${{ needs.test.outputs.zip_sha256 }}
+      run: |
+        set -euo pipefail
+        (cd dist && sha256sum --check --strict @aviorstudio_gd-clerk.zip.sha256)
+        node scripts/release-guard.mjs --checksum dist/@aviorstudio_gd-clerk.zip.sha256
+        actual="$(sha256sum dist/@aviorstudio_gd-clerk.zip | awk '{print $1}')"
+        test "$actual" = "$PACKAGE_SHA256"
+        node scripts/verify-zip.mjs dist/@aviorstudio_gd-clerk.zip
+    - name: Verify the GDAM asset
+      run: |
+        set -euo pipefail
+        (cd dist && sha256sum --check --strict @aviorstudio_gd-clerk.gdam.zip.sha256)
+    - name: Publish the exact tested ZIP
+      env:
+        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        RELEASE_TAG: ${{ needs.test.outputs.tag }}
+        RELEASE_COMMIT: ${{ needs.test.outputs.commit }}
+      run: |
+        set -euo pipefail
+        test -n "${GH_TOKEN}"
+        test "$(git rev-parse HEAD)" = "$RELEASE_COMMIT"
+        if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
+          echo "release already exists; refusing to replace it"
+          exit 1
+        fi
+        gh release create "$RELEASE_TAG" dist/@aviorstudio_gd-clerk.zip dist/@aviorstudio_gd-clerk.zip.sha256 dist/@aviorstudio_gd-clerk.gdam.zip --target "$RELEASE_COMMIT" --title "gd-clerk $RELEASE_TAG" --notes-file dist/RELEASE_NOTES.md
+    - name: Publish addon
+      uses: aviorstudio/gdam-actions/publish@6677226d9353df1d410f3e7f5075e13b3b7d5308
+      with:
+        tag: ${{ needs.test.outputs.tag }}
+        asset: '@aviorstudio_gd-clerk.gdam.zip'

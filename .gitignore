@@ -13,3 +13,7 @@ __pycache__/
 # Installed by gdam install from gdam.lock; the deps file is generated.
 addons/@aviorstudio_gd-session/
 addons/@aviorstudio_gd-clerk/.gdam/
+
+.komizo.mise*.toml
+
+.komizo.mise*.lock
