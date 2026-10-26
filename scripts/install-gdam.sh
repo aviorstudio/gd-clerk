@@ -2,7 +2,7 @@
 # Install the pinned gdam CLI, which restores this project's addon
 # dependencies (gdam.lock) before the Godot tests run. The archive is the
 # exact release asset, checked against its reviewed SHA-256 before anything
-# is extracted, the same way scripts/install-godot.sh pins the engine.
+# is extracted, the same way the locked addon recipe pins the engine.
 set -euo pipefail
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 version="v0.1.0"
