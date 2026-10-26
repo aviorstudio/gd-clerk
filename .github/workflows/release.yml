@@ -38,7 +38,7 @@ jobs:
         ref: main
         fetch-depth: 0
         persist-credentials: false
-    - name: Set up locked Komizo
+    - name: Set up locked komizo
       uses: nicodes/komizo/setup@40086036977a5fc0119d6c4c1d5eb6ae3ab3b4b9
       env:
         GH_TOKEN: ${{ github.token }}
@@ -143,7 +143,7 @@ jobs:
         actual="$(sha256sum dist/@aviorstudio_gd-clerk.zip | awk '{print $1}')"
         test "$actual" = "$PACKAGE_SHA256"
         node scripts/verify-zip.mjs dist/@aviorstudio_gd-clerk.zip
-    - name: Verify the GDAM asset
+    - name: Verify the gdam asset
       run: |
         set -euo pipefail
         (cd dist && sha256sum --check --strict @aviorstudio_gd-clerk.gdam.zip.sha256)
