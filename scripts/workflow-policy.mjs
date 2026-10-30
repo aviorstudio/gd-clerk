@@ -3,6 +3,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseDocument } from "yaml";
+import { execFileSync } from "node:child_process";
 import { FORBIDDEN_COUPLING } from "./consumer-boundary.mjs";
 
 function workflow(root, name) {
@@ -20,43 +21,35 @@ const requireText = (text, value, message) => {
 function assertNativeGate(doc, jobName, revision) {
   const job = doc.jobs?.[jobName];
   const steps = job?.steps ?? [];
-  const index = steps.findIndex((step) => step.uses === `nicodes/komizo/run@${revision}`);
+  const index = steps.findIndex((step) => step.run?.trim() === "set -euo pipefail\nmise run check");
   const check = steps[index];
   if (!job || job["continue-on-error"] !== undefined || !check || !unconditional(check)
-      || check.with?.target !== "check" || check["working-directory"] !== undefined
-      || Object.keys(check.with).some((key) => !["target", "go-cache", "web-cache", "build-cache"].includes(key))
+      || check.with !== undefined || check["working-directory"] !== undefined
       || doc.defaults?.run?.["working-directory"] || job.defaults?.run?.["working-directory"]
-      || !steps.slice(0, index).some((step) => step.uses === `nicodes/komizo/setup@${revision}` && unconditional(step)
+      || !steps.slice(0, index).some((step) => step.uses === `nicodes/tools/setup@${revision}` && unconditional(step)
         && Object.keys(step.with ?? {}).length === 0)) {
-    throw new Error(`${jobName} must run the unconditional complete locked komizo gate after matching setup`);
+    throw new Error(`${jobName} must run the unconditional complete native gate after matching tools setup`);
   }
 }
 
-function assertProjectGate(root) {
-  const project = JSON.parse(readFileSync(join(root, "komizo.json"), "utf8"));
-  const lock = JSON.parse(readFileSync(join(root, "komizo.lock"), "utf8"));
-  if (project.recipe !== "godot-addon" || project.verification !== undefined || !/^[0-9a-f]{40}$/.test(lock.platform_revision)) {
-    throw new Error("project must use the complete locked Godot addon recipe");
-  }
-  // These literal argv checks follow the executable manifest, rather than
-  // mistaking workflow comments or a partial native command for product tests.
-  const unit = [["npm", "test"], ["bash", "scripts/run-godot-tests.sh"], ["npm", "run", "test:browser"],
-    ...["origin", "configure", "revoke"].map((name) => ["node", "--test", `tests/web/${name}_export.test.mjs`])];
-  assert.deepEqual(project.stages.unit, unit.map((argv) => ["bash", "scripts/test-env.sh", ...argv]), "project must retain every native/browser/web export regression");
-  assert.deepEqual(project.stages.lint, [["npm", "audit", "--audit-level=high"], ["node", "scripts/vendor-clerk.mjs", "--check"],
-    ["node", "scripts/scan.mjs"], ["node", "scripts/workflow-policy.mjs"]], "project must retain source and dependency controls");
-  assert.deepEqual(project.stages.build, [["node", "scripts/package-addon.mjs"], ["node", "scripts/verify-zip.mjs", "dist/@aviorstudio_gd-clerk.zip"]], "project must verify the assembled ZIP");
-  assert.deepEqual(project.stages["artifact-check"], [["bash", "scripts/test-env.sh", "node", "scripts/editor-lifecycle.mjs", "dist/@aviorstudio_gd-clerk.zip"]], "project must verify the installed ZIP editor lifecycle");
-  assert.deepEqual(project.stages.install.slice(1), [["npm", "ci"], ["bash", "scripts/install.sh"]], "project must install frozen dependencies");
-  assert.deepEqual(project.stages.install[0], ["python3", "-c", 'import os,runpy;runpy.run_path(os.environ["CICD_ENGINEERING"]+"/helpers/godot-addon.py",run_name="__main__")', "install"], "project must use locked Godot engine/template setup");
-  const bindingPath = join(root, ".github/komizo-action-source.json");
-  if (!existsSync(bindingPath)) return lock.platform_revision;
-  const binding = JSON.parse(readFileSync(bindingPath, "utf8"));
-  assert.deepEqual(Object.keys(binding).sort(), ["action_revision", "platform_revision", "version"]);
-  assert.equal(binding.version, 1);
-  assert.equal(binding.platform_revision, lock.platform_revision);
-  assert.match(binding.action_revision, /^[0-9a-f]{40}$/);
-  return binding.action_revision;
+function assertProjectGate(root, ci) {
+  const project = JSON.parse(execFileSync("python3", ["-c",
+    "import json,sys,tomllib; print(json.dumps(tomllib.load(open(sys.argv[1], 'rb'))))", join(root, "mise.toml")], { encoding: "utf8" }));
+  const tasks = project.tasks;
+  assert.deepEqual(tasks["_unit"].run, ["bash scripts/test-env.sh npm test", "bash scripts/test-env.sh bash scripts/run-godot-tests.sh", "bash scripts/test-env.sh npm run test:browser", "bash scripts/test-env.sh node --test tests/web/origin_export.test.mjs", "bash scripts/test-env.sh node --test tests/web/configure_export.test.mjs", "bash scripts/test-env.sh node --test tests/web/revoke_export.test.mjs"], "project must retain every native/browser/web export regression");
+  assert.deepEqual(tasks["lint"].run, ["npm audit --audit-level=high", "node scripts/vendor-clerk.mjs --check", "node scripts/scan.mjs", "node scripts/workflow-policy.mjs"], "project must retain source and dependency controls");
+  assert.deepEqual(tasks["_build"].run, ["node scripts/package-addon.mjs", "node scripts/verify-zip.mjs dist/@aviorstudio_gd-clerk.zip"], "project must verify the assembled ZIP");
+  assert.deepEqual(tasks["artifact-check"].run, ["bash scripts/test-env.sh node scripts/editor-lifecycle.mjs dist/@aviorstudio_gd-clerk.zip"], "project must verify the installed ZIP editor lifecycle");
+  assert.deepEqual(tasks["unit"].run, "python3 \"$TOOLS_ROOT/helpers/verification.py\" test --name unit --artifact dist -- mise run _unit", "project must retain source-bound unit evidence");
+  assert.deepEqual(tasks["build"].run, "python3 \"$TOOLS_ROOT/helpers/verification.py\" build --name build --artifact dist -- mise run _build", "project must retain source-bound build evidence");
+  assert.deepEqual(tasks["check"].run, "python3 \"$TOOLS_ROOT/helpers/verification.py\" session --test unit -- mise run _check-stages", "project must require current-session test evidence");
+  assert.deepEqual(tasks["_check-stages"].run, [{"task": "install"}, {"task": "lint"}, {"task": "build"}, {"task": "unit"}, {"task": "artifact-check"}], "project must retain the complete native gate");
+  assert.deepEqual(tasks["install"].run, ["env GODOT_BIN=\"$PWD/.artifacts/godot/bin/godot\" XDG_DATA_HOME=\"$PWD/.artifacts/godot-data\" PATH=\"$PWD/.artifacts/godot/bin:$PATH\" python3 \"$TOOLS_ROOT/helpers/godot-setup.py\" --version 4.7.2 --expected-version 4.7.2.stable.official.ed1daf0bf --binary-checksum sha256:cadd3204e728a35d3f13adb7fd0d7902636b79f6b95c40c265eb73b6c35329e4 --root .artifacts/godot --origin godot-builds --templates --templates-checksum sha256:f298490b8d44d934be425a5a65a51bf15f422428b229a06a6e11d9ffea248011", "npm ci", "bash scripts/install.sh"], "project must install frozen dependencies and checksum-verified Godot engine/templates");
+  for (const name of ["unit", "build", "lint"]) assert.deepEqual(tasks[name].depends, ["install"]);
+  assert.deepEqual(tasks["artifact-check"].depends, ["build"]);
+  const setup = ci.jobs.ci.steps.find((step) => /^nicodes\/tools\/setup@[a-f0-9]{40}$/.test(step.uses ?? ""));
+  if (!setup) throw new Error("complete native gate requires a full source pin for tools setup");
+  return setup.uses.split("@")[1];
 }
 
 export function assertWorkflows(root) {
@@ -108,7 +101,7 @@ export function assertWorkflows(root) {
   for (const value of ["sha256sum --check --strict @aviorstudio_gd-clerk.zip.sha256", "sha256sum --check --strict @aviorstudio_gd-clerk.gdam.zip.sha256", "gh release create"]) requireText(commands(publisher), value);
   requireText(JSON.stringify(ci.jobs.ci), "github.event.pull_request.head.sha", "CI candidate provenance must bind the branch commit, not the merge commit");
   requireText(commands(ci.jobs.ci), "node scripts/candidate-provenance.mjs", "CI must record candidate provenance");
-  const revision = assertProjectGate(root);
+  const revision = assertProjectGate(root, ci);
   assertNativeGate(ci, "ci", revision);
   assertNativeGate(release, "test", revision);
 }

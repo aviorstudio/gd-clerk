@@ -67,8 +67,7 @@ test("gdam publication is trusted publishing with no registry secret", () => {
     for (const name of ["release.yml", "ci.yml", "gdam-publish.yml"]) {
       copyFileSync(join(root, ".github/workflows", name), join(workflows, name));
     }
-    for (const name of ["komizo.json", "komizo.lock"]) copyFileSync(join(root, name), join(dir, name));
-    copyFileSync(join(root, ".github/komizo-action-source.json"), join(dir, ".github/komizo-action-source.json"));
+    copyFileSync(join(root, "mise.toml"), join(dir, "mise.toml"));
   };
   const mutate = (name, change, expected) => {
     reset();
@@ -98,17 +97,19 @@ test("gdam publication is trusted publishing with no registry secret", () => {
         }
       }, name === "release.yml" ? /release workflow missing/ : /bind the tag commit/);
     }
-    const native = (doc) => doc.jobs.ci.steps.find((step) => step.uses?.includes("nicodes/komizo/run@"));
-    mutate("ci.yml", (doc) => { native(doc).with.target = "lint"; }, /complete locked komizo gate/);
-    mutate("ci.yml", (doc) => { native(doc).if = "false"; }, /complete locked komizo gate/);
-    mutate("ci.yml", (doc) => { native(doc).with.base = "a".repeat(40); }, /complete locked komizo gate/);
-    mutate("ci.yml", (doc) => { doc.jobs.ci.steps.find((step) => step.uses?.includes("nicodes/komizo/setup@")).uses = "nicodes/komizo/setup@" + "0".repeat(40); }, /complete locked komizo gate/);
+    const native = (doc) => doc.jobs.ci.steps.find((step) => step.run?.trim() === "set -euo pipefail\nmise run check");
+    mutate("ci.yml", (doc) => { native(doc).run = "set -euo pipefail\nmise run lint"; }, /complete native gate/);
+    mutate("ci.yml", (doc) => { native(doc).if = "false"; }, /complete native gate/);
+    mutate("ci.yml", (doc) => { native(doc).with = { base: "a".repeat(40) }; }, /complete native gate/);
+    mutate("ci.yml", (doc) => { doc.jobs.ci.steps.find((step) => step.uses?.includes("nicodes/tools/setup@")).uses = "nicodes/tools/setup@" + "0".repeat(40); }, /complete native gate/);
     reset();
-    const projectPath = join(dir, "komizo.json");
-    const project = JSON.parse(readFileSync(projectPath, "utf8"));
-    project.stages.unit.pop();
-    writeFileSync(projectPath, JSON.stringify(project));
+    const projectPath = join(dir, "mise.toml");
+    const project = readFileSync(projectPath, "utf8");
+    writeFileSync(projectPath, project.replace(', "bash scripts/test-env.sh node --test tests/web/revoke_export.test.mjs"', ""));
     assert.throws(() => assertWorkflows(dir), /every native\/browser\/web export regression/);
+    reset();
+    writeFileSync(projectPath, readFileSync(projectPath, "utf8").replace("sha256:cadd3204e728a35d3f13adb7fd0d7902636b79f6b95c40c265eb73b6c35329e4", "sha256:" + "0".repeat(64)));
+    assert.throws(() => assertWorkflows(dir), /checksum-verified Godot/);
     reset();
     assert.doesNotThrow(() => assertWorkflows(dir));
   } finally {

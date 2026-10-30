@@ -38,8 +38,8 @@ jobs:
         ref: main
         fetch-depth: 0
         persist-credentials: false
-    - name: Set up locked komizo
-      uses: nicodes/komizo/setup@2ca94e2fd4bb05f41bb228e9c366e5cc733c75e6
+    - name: Set up development tools
+      uses: nicodes/tools/setup@f7e243524ce2aa29f299e4c79db33001f72f4a30
       env:
         GH_TOKEN: ${{ github.token }}
       timeout-minutes: 5
@@ -47,8 +47,7 @@ jobs:
       id: identity
       env:
         RELEASE_TAG: ${{ inputs.tag }}
-      run: |
-        komizo exec --tools node -- bash -euo pipefail <<'KOMIZO_COMMAND'
+      run: |-
         set -euo pipefail
         git fetch origin main
         commit="$(git rev-parse HEAD)"
@@ -64,24 +63,22 @@ jobs:
           echo "tag=$RELEASE_TAG"
           echo "version=${RELEASE_TAG#v}"
         } >> "$GITHUB_OUTPUT"
-        KOMIZO_COMMAND
     - name: Check project
-      uses: nicodes/komizo/run@2ca94e2fd4bb05f41bb228e9c366e5cc733c75e6
-      with:
-        target: check
+      shell: bash
+      run: |-
+        set -euo pipefail
+        mise run check
     - name: Package the closed addon and record provenance
       id: package
       env:
         RELEASE_TAG: ${{ steps.identity.outputs.tag }}
         RELEASE_COMMIT: ${{ steps.identity.outputs.commit }}
-      run: |
-        komizo exec --tools node -- bash -euo pipefail <<'KOMIZO_COMMAND'
+      run: |-
         set -euo pipefail
         sha="$(awk '{print $1}' dist/@aviorstudio_gd-clerk.zip.sha256)"
         node scripts/candidate-provenance.mjs --zip dist/@aviorstudio_gd-clerk.zip --commit "$RELEASE_COMMIT" --out dist/CANDIDATE.json
         PACKAGE_SHA256="$sha" node scripts/release-notes.mjs --tag "$RELEASE_TAG" --commit "$RELEASE_COMMIT" --zip-sha256 "$sha" --out dist/RELEASE_NOTES.md
         echo "zip_sha256=$sha" >> "$GITHUB_OUTPUT"
-        KOMIZO_COMMAND
     - name: Upload artifacts
       uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
       with:
@@ -121,7 +118,7 @@ jobs:
     - name: Require the tested main commit
       env:
         RELEASE_COMMIT: ${{ needs.test.outputs.commit }}
-      run: |
+      run: |-
         set -euo pipefail
         git fetch origin main
         origin="$(git rev-parse origin/main)"
@@ -136,7 +133,7 @@ jobs:
     - name: Verify tested artifact identity
       env:
         PACKAGE_SHA256: ${{ needs.test.outputs.zip_sha256 }}
-      run: |
+      run: |-
         set -euo pipefail
         (cd dist && sha256sum --check --strict @aviorstudio_gd-clerk.zip.sha256)
         node scripts/release-guard.mjs --checksum dist/@aviorstudio_gd-clerk.zip.sha256
@@ -144,7 +141,7 @@ jobs:
         test "$actual" = "$PACKAGE_SHA256"
         node scripts/verify-zip.mjs dist/@aviorstudio_gd-clerk.zip
     - name: Verify the gdam asset
-      run: |
+      run: |-
         set -euo pipefail
         (cd dist && sha256sum --check --strict @aviorstudio_gd-clerk.gdam.zip.sha256)
     - name: Publish the exact tested ZIP
@@ -152,7 +149,7 @@ jobs:
         GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         RELEASE_TAG: ${{ needs.test.outputs.tag }}
         RELEASE_COMMIT: ${{ needs.test.outputs.commit }}
-      run: |
+      run: |-
         set -euo pipefail
         test -n "${GH_TOKEN}"
         test "$(git rev-parse HEAD)" = "$RELEASE_COMMIT"
