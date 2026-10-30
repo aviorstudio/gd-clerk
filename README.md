@@ -1,4 +1,4 @@
-<!-- Generated from private documentation source. Do not edit directly. Source SHA256: 04af9219818ba99381fa3589d3edf41646d986ad45c1b09b9a9350ea33a49a06 -->
+<!-- Generated from private documentation source. Do not edit directly. Source SHA256: d9e94ca459aeca85423bf985258b204c88417201411ad0f206d72c835c361a95 -->
 
 # gd-clerk
 
@@ -50,8 +50,21 @@ The browser files under `javascript/clerk/` are the exact `6.38.1` `clerk.browse
 
 ## Tests
 
-`komizo run test` runs the JavaScript policy tests, the headless Godot unit tests, the native suite against `tests/native/fapi_fixture.py` (a standard-library loopback Frontend API that is accepted only with `GD_CLERK_TEST_LOOPBACK=1` and `127.0.0.1`), the browser fixture, and three web export regressions. The fixture is not Clerk; live email-code proof belongs to the consuming project.
+`mise run test` runs the JavaScript policy tests, the headless Godot unit tests, the native suite against `tests/native/fapi_fixture.py` (a standard-library loopback Frontend API that is accepted only with `GD_CLERK_TEST_LOOPBACK=1` and `127.0.0.1`), the browser fixture, and three web export regressions. The fixture is not Clerk; live email-code proof belongs to the consuming project.
 
 ## Inspector configuration
 
 Create a `ClerkConfig` resource in the FileSystem dock and save it as a `.tres` file. Edit its publishable key, frontend API URL, and allowed origins in the Inspector, then load that resource and pass it to `GdClerk.configure(config, done)`. These are public configuration values. Set the consumer's `revoke_session` callback and, on native, its `credential_store` at runtime before configuring; callbacks, stores and session tokens are never saved in the resource.
+
+## Contributor checks
+
+Install [mise](https://mise.jdx.dev/), then prepare the pinned development helpers and run the complete native gate:
+
+```sh
+git clone https://github.com/nicodes/tools.git .ci-tools
+git -C .ci-tools checkout --detach f7e243524ce2aa29f299e4c79db33001f72f4a30
+mise install
+mise run check
+```
+
+`mise.toml` owns tool versions and tasks. Engine and template downloads are checksum verified. `mise run build` packages the addon; `mise run test` runs its declared tests. The complete check also validates the installed artifact. Build and test receipts stay in `.artifacts/verification`.
