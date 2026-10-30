@@ -5,9 +5,9 @@
 # is extracted, the same way the locked addon recipe pins the engine.
 set -euo pipefail
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-version="v0.1.0"
+version="v0.1.5"
 archive="gdam_Linux_x86_64.tar.gz"
-sha256="63bfb66ff08b1191607e37324321a6bdb093d7639e38421d1f1f0854cf7ccb13"
+sha256="0c24b5958d7663b0cdc52465f39f4481d1d3e92ec1c6221b9dcc5e7faa1ef634"
 destination="${1:-$root/.artifacts/bin/gdam}"
 if [[ -x "$destination" ]] && "$destination" --version 2>/dev/null | grep -q "gdam ${version#v}"; then
   exit 0
