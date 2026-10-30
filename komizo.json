@@ -5,7 +5,7 @@
   "tools": {
     "node": "22.20.0",
     "github:aviorstudio/gdam": {
-      "version": "v0.1.3",
+      "version": "v0.1.5",
       "asset_pattern": "gdam_Linux_x86_64.tar.gz",
       "bin": "gdam"
     }
