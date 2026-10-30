@@ -49,7 +49,14 @@ function assertProjectGate(root) {
   assert.deepEqual(project.stages["artifact-check"], [["bash", "scripts/test-env.sh", "node", "scripts/editor-lifecycle.mjs", "dist/@aviorstudio_gd-clerk.zip"]], "project must verify the installed ZIP editor lifecycle");
   assert.deepEqual(project.stages.install.slice(1), [["npm", "ci"], ["bash", "scripts/install.sh"]], "project must install frozen dependencies");
   assert.deepEqual(project.stages.install[0], ["python3", "-c", 'import os,runpy;runpy.run_path(os.environ["CICD_ENGINEERING"]+"/helpers/godot-addon.py",run_name="__main__")', "install"], "project must use locked Godot engine/template setup");
-  return lock.platform_revision;
+  const bindingPath = join(root, ".github/komizo-action-source.json");
+  if (!existsSync(bindingPath)) return lock.platform_revision;
+  const binding = JSON.parse(readFileSync(bindingPath, "utf8"));
+  assert.deepEqual(Object.keys(binding).sort(), ["action_revision", "platform_revision", "version"]);
+  assert.equal(binding.version, 1);
+  assert.equal(binding.platform_revision, lock.platform_revision);
+  assert.match(binding.action_revision, /^[0-9a-f]{40}$/);
+  return binding.action_revision;
 }
 
 export function assertWorkflows(root) {

@@ -39,7 +39,7 @@ jobs:
         fetch-depth: 0
         persist-credentials: false
     - name: Set up locked komizo
-      uses: nicodes/komizo/setup@1b740f28682948a2d5eb4613744bb262d2056e6c
+      uses: nicodes/komizo/setup@2ca94e2fd4bb05f41bb228e9c366e5cc733c75e6
       env:
         GH_TOKEN: ${{ github.token }}
       timeout-minutes: 5
@@ -66,7 +66,7 @@ jobs:
         } >> "$GITHUB_OUTPUT"
         KOMIZO_COMMAND
     - name: Check project
-      uses: nicodes/komizo/run@1b740f28682948a2d5eb4613744bb262d2056e6c
+      uses: nicodes/komizo/run@2ca94e2fd4bb05f41bb228e9c366e5cc733c75e6
       with:
         target: check
     - name: Package the closed addon and record provenance
@@ -162,7 +162,7 @@ jobs:
         fi
         gh release create "$RELEASE_TAG" dist/@aviorstudio_gd-clerk.zip dist/@aviorstudio_gd-clerk.zip.sha256 dist/@aviorstudio_gd-clerk.gdam.zip --target "$RELEASE_COMMIT" --title "gd-clerk $RELEASE_TAG" --notes-file dist/RELEASE_NOTES.md
     - name: Publish addon
-      uses: aviorstudio/gdam-actions/publish@6677226d9353df1d410f3e7f5075e13b3b7d5308
+      uses: aviorstudio/gdam-actions/publish@3a46007e296e60e15a4ad47727ad33046e52e6ea
       with:
         tag: ${{ needs.test.outputs.tag }}
         asset: '@aviorstudio_gd-clerk.gdam.zip'

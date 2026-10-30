@@ -68,6 +68,7 @@ test("gdam publication is trusted publishing with no registry secret", () => {
       copyFileSync(join(root, ".github/workflows", name), join(workflows, name));
     }
     for (const name of ["komizo.json", "komizo.lock"]) copyFileSync(join(root, name), join(dir, name));
+    copyFileSync(join(root, ".github/komizo-action-source.json"), join(dir, ".github/komizo-action-source.json"));
   };
   const mutate = (name, change, expected) => {
     reset();
