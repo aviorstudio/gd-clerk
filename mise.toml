@@ -1,7 +1,7 @@
 [tools]
 "python" = "3.13.11"
 "node" = "22.20.0"
-"github:aviorstudio/gdam" = {"version" = "v0.1.5", "asset_pattern" = "gdam_Linux_x86_64.tar.gz", "bin" = "gdam"}
+"github:aviorstudio/gdam" = {"version" = "v0.2.0", "asset_pattern" = "gdam_Linux_x86_64.tar.gz", "bin" = "gdam"}
 
 [env]
 TOOLS_ROOT = "{{ get_env(name='TOOLS_ROOT', default=config_root ~ '/.ci-tools') }}"
