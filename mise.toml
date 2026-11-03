@@ -28,7 +28,7 @@ run = ["bash scripts/test-env.sh node scripts/editor-lifecycle.mjs dist/@aviorst
 depends = ["build"]
 
 [tasks."clean"]
-run = ["python3 -c 'import shutil; [shutil.rmtree(p, ignore_errors=True) for p in (\".artifacts\", \"dist\", \"node_modules\", \".godot\")]'"]
+run = "python3 \"$TOOLS_ROOT/helpers/clean.py\" --path dist --path .artifacts/build --path .artifacts/godot --path .artifacts/godot-data --path .artifacts/tmp --path .godot --path node_modules"
 
 [tasks."_build"]
 run = ["node scripts/package-addon.mjs", "node scripts/verify-zip.mjs dist/@aviorstudio_gd-clerk.zip"]
