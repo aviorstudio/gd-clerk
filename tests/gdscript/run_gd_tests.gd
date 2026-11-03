@@ -50,7 +50,7 @@ func _expect(ok: bool, label: String) -> bool:
 	return true
 
 func _native_unconfigured() -> bool:
-	var clerk = load("res://addons/@aviorstudio_gd-clerk/gd_clerk.gd").new()
+	var clerk = load("res://addon/gd_clerk.gd").new()
 	var calls: Array = []
 	var done := func(result: ClerkResult) -> void:
 		calls.append(result.state + "/" + result.error_key)
@@ -125,7 +125,7 @@ func _native_policy() -> bool:
 	return ClerkPolicy.validate_config(web, "http://127.0.0.1:9") == "" and not ClerkPolicy.is_native_frontend_api_host("clerk.") and ClerkPolicy.is_native_frontend_api_host("CLERK.Example.com")
 
 func _native_helpers() -> bool:
-	var backend_script = load("res://addons/@aviorstudio_gd-clerk/clerk_native_backend.gd")
+	var backend_script = load("res://addon/clerk_native_backend.gd")
 	var backend = backend_script.new()
 	var redacted: String = backend_script.sanitize_message("code 123456 for person@example.com token eyJhbGciOiJIUzI1NiJ9.eyJleHAiOjF9.c2ln key pk_test_abc123 ok")
 	if redacted.contains("person@") or redacted.contains("123456") or redacted.contains("eyJ") or redacted.contains("pk_test") or not redacted.ends_with("ok"):
@@ -199,7 +199,7 @@ func _config_omits_revoke() -> bool:
 	return not data.has("revoke_session") and not raw.contains("revoke") and kept.phase == "tab_deactivated" and kept.token == "" and dropped.phase == ""
 
 func _origin_closed() -> bool:
-	var clerk = load("res://addons/@aviorstudio_gd-clerk/gd_clerk.gd").new()
+	var clerk = load("res://addon/gd_clerk.gd").new()
 	var native_origin: String = clerk._page_origin()
 	var empty_ok: bool = not clerk._is_supported_origin("")
 	var file_ok: bool = not clerk._is_supported_origin("file://secret.example")
@@ -235,7 +235,7 @@ func _result_drops_secrets() -> bool:
 	return result.token == "" and result.phase == "" and allowed.phase == "create_stale" and not result.message.contains("person@") and state.to_dictionary().has("token") == false and state.to_dictionary().has("email") == false
 
 func _clerk() -> Node:
-	return load("res://addons/@aviorstudio_gd-clerk/gd_clerk.gd").new()
+	return load("res://addon/gd_clerk.gd").new()
 
 func _label(result: ClerkResult) -> String:
 	return result.error_key if result.error_key != "" else result.state

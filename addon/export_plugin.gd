@@ -22,7 +22,7 @@ func _export_end() -> void:
 		return
 	if not _copy_clerk_files(out_dir):
 		return
-	if not _copy_file("res://addons/@aviorstudio_gd-clerk/javascript/gd_clerk_bridge.js", out_dir.path_join("gd_clerk_bridge.js")):
+	if not _copy_file(get_script().resource_path.get_base_dir().path_join("javascript/gd_clerk_bridge.js"), out_dir.path_join("gd_clerk_bridge.js")):
 		return
 	var html := FileAccess.get_file_as_string(html_path)
 	if html.is_empty():
@@ -39,7 +39,7 @@ func _export_end() -> void:
 	out.close()
 
 func _copy_clerk_files(out_dir: String) -> bool:
-	var source := "res://addons/@aviorstudio_gd-clerk/javascript/clerk"
+	var source: String = get_script().resource_path.get_base_dir().path_join("javascript/clerk")
 	var dir := DirAccess.open(source)
 	if dir == null:
 		push_error("gd-clerk: bundled Clerk assets could not be opened.")

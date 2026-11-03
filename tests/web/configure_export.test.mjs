@@ -100,6 +100,7 @@ test("web export configures the pinned Clerk instance only after validation", as
   try {
     cpSync(join(root, "tests/web/configure-harness"), project, { recursive: true });
     cpSync(join(root, "addons"), join(project, "addons"), { recursive: true });
+    cpSync(join(root, "addon"), join(project, "addons/@aviorstudio_gd-clerk"), { recursive: true });
     const out = exportWeb(project);
     const html = readFileSync(join(out, "index.html"), "utf8");
     assert.equal(html.includes("gd-clerk/gd_clerk_bridge.js"), true);

@@ -6,7 +6,7 @@ const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 
 export function loadProvenance() {
   const pkg = JSON.parse(readFileSync(join(root, "package.json"), "utf8"));
-  const vendor = JSON.parse(readFileSync(join(root, "addons/@aviorstudio_gd-clerk/javascript/clerk/VENDOR.json"), "utf8"));
+  const vendor = JSON.parse(readFileSync(join(root, "addon/javascript/clerk/VENDOR.json"), "utf8"));
   const allow = JSON.parse(readFileSync(join(root, "scripts/package-allowlist.json"), "utf8"));
   return {
     version: pkg.version,

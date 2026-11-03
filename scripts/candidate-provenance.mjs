@@ -43,7 +43,7 @@ if (process.argv[1] && process.argv[1].endsWith("candidate-provenance.mjs")) {
     const commit = arg(args, "--commit");
     const out = arg(args, "--out");
     const version = JSON.parse(readFileSync(join(root, "package.json"), "utf8")).version;
-    const vendor = JSON.parse(readFileSync(join(root, "addons/@aviorstudio_gd-clerk/javascript/clerk/VENDOR.json"), "utf8"));
+    const vendor = JSON.parse(readFileSync(join(root, "addon/javascript/clerk/VENDOR.json"), "utf8"));
     const allow = JSON.parse(readFileSync(join(root, "scripts/package-allowlist.json"), "utf8"));
     const doc = buildCandidate({
       commit,

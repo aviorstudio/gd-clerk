@@ -23,7 +23,7 @@ const STATUS_NOT_FOUND := 1
 const MAX_BODY_BYTES := 262144
 const MAX_MESSAGE_LENGTH := 180
 const MAX_MIN_VALIDITY := 120
-const CODES_PATH := "res://addons/@aviorstudio_gd-clerk/observed_error_codes.json"
+const CODES_FILE := "observed_error_codes.json"
 
 const MESSAGES := {
 	"CODE_SENT": "Verification code sent.",
@@ -88,7 +88,8 @@ func _init() -> void:
 	var bounds: Dictionary = ClerkPolicy.limits()
 	timeout_ms = int(bounds.get("network_timeout_ms", 30000))
 	resend_cooldown_ms = int(bounds.get("resend_cooldown_ms", 30000))
-	var text := FileAccess.get_file_as_string(CODES_PATH)
+	var source: Script = Deps
+	var text := FileAccess.get_file_as_string(source.resource_path.get_base_dir().get_base_dir().path_join(CODES_FILE))
 	var parsed: Variant = parse_json(text)
 	if typeof(parsed) == TYPE_DICTIONARY:
 		var data: Dictionary = parsed

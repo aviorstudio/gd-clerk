@@ -152,7 +152,7 @@ test("godot log rejector fails closed on engine errors", () => {
 });
 
 test("release notes are package provenance", () => {
-  const vendor = JSON.parse(readFileSync(join(root, "addons/@aviorstudio_gd-clerk/javascript/clerk/VENDOR.json"), "utf8"));
+  const vendor = JSON.parse(readFileSync(join(root, "addon/javascript/clerk/VENDOR.json"), "utf8"));
   const info = {
     version: "0.1.0",
     tag: "v0.1.0",
@@ -170,8 +170,8 @@ test("release notes are package provenance", () => {
 
 test("addon version is declared once per surface and agrees everywhere", () => {
   const pkg = JSON.parse(readFileSync(join(root, "package.json"), "utf8"));
-  const cfg = readFileSync(join(root, "addons/@aviorstudio_gd-clerk/plugin.cfg"), "utf8");
-  const backend = readFileSync(join(root, "addons/@aviorstudio_gd-clerk/clerk_native_backend.gd"), "utf8");
+  const cfg = readFileSync(join(root, "addon/plugin.cfg"), "utf8");
+  const backend = readFileSync(join(root, "addon/clerk_native_backend.gd"), "utf8");
   const packager = readFileSync(join(root, "scripts/package-addon.mjs"), "utf8");
   const verifier = readFileSync(join(root, "scripts/verify-zip.mjs"), "utf8");
   const release = readFileSync(join(root, ".github/workflows/release.yml"), "utf8");
@@ -184,14 +184,14 @@ test("addon version is declared once per surface and agrees everywhere", () => {
 });
 
 test("native backend never sends the publishable key and keeps the bridge untouched", () => {
-  const backend = readFileSync(join(root, "addons/@aviorstudio_gd-clerk/clerk_native_backend.gd"), "utf8");
+  const backend = readFileSync(join(root, "addon/clerk_native_backend.gd"), "utf8");
   assert.equal(backend.includes("publishable_key"), false);
   assert.ok(backend.includes("_is_native=true"));
   assert.ok(backend.includes("Clerk-API-Version: "));
   assert.ok(backend.includes("max_redirects = 0"));
   assert.ok(backend.includes("JSON.parse_string") === false);
   assert.equal(backend.includes("FileAccess.open"), false);
-  const codes = JSON.parse(readFileSync(join(root, "addons/@aviorstudio_gd-clerk/observed_error_codes.json"), "utf8"));
+  const codes = JSON.parse(readFileSync(join(root, "addon/observed_error_codes.json"), "utf8"));
   assert.equal(codes.native_codes.native_api_disabled, "CONFIG");
   assert.equal(codes.native_codes.verification_code_too_many_attempts, "RATE_LIMIT");
 });

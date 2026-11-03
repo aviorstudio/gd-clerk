@@ -9,7 +9,7 @@ const types = join(root, "node_modules/@clerk/clerk-js/dist/types");
 const signIn = readFileSync(join(types, "core/resources/SignIn.d.ts"), "utf8");
 const signUp = readFileSync(join(types, "core/resources/SignUp.d.ts"), "utf8");
 const clerk = readFileSync(join(types, "core/clerk.d.ts"), "utf8");
-const bridge = readFileSync(join(root, "addons/@aviorstudio_gd-clerk/javascript/gd_clerk_bridge.js"), "utf8");
+const bridge = readFileSync(join(root, "addon/javascript/gd_clerk_bridge.js"), "utf8");
 
 test("pinned clerk-js types expose legacy resources and keep future methods internal", () => {
   assert.match(signIn, /prepareFirstFactor/);

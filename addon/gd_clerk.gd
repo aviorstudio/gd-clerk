@@ -3,7 +3,7 @@ extends Node
 signal session_changed(state: SessionState)
 
 const _MAX_LIVE_RELAYS := 8
-const _NativeBackend := preload("res://addons/@aviorstudio_gd-clerk/clerk_native_backend.gd")
+const _NativeBackend := preload("clerk_native_backend.gd")
 
 var _next_id: int = 1
 var _generation: int = 1

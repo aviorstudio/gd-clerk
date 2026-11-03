@@ -2,7 +2,8 @@ class_name ClerkPolicy
 extends RefCounted
 
 static func limits() -> Dictionary:
-	var text := FileAccess.get_file_as_string("res://addons/@aviorstudio_gd-clerk/limits.json")
+	var source: Script = ClerkPolicy
+	var text := FileAccess.get_file_as_string(source.resource_path.get_base_dir().path_join("limits.json"))
 	var parsed: Variant = JSON.parse_string(text)
 	if typeof(parsed) != TYPE_DICTIONARY:
 		return {}
