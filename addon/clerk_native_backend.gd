@@ -88,7 +88,8 @@ func _init() -> void:
 	var bounds: Dictionary = ClerkPolicy.limits()
 	timeout_ms = int(bounds.get("network_timeout_ms", 30000))
 	resend_cooldown_ms = int(bounds.get("resend_cooldown_ms", 30000))
-	var text := FileAccess.get_file_as_string(Deps.resource_path.get_base_dir().get_base_dir().path_join(CODES_FILE))
+	var source: Script = Deps
+	var text := FileAccess.get_file_as_string(source.resource_path.get_base_dir().get_base_dir().path_join(CODES_FILE))
 	var parsed: Variant = parse_json(text)
 	if typeof(parsed) == TYPE_DICTIONARY:
 		var data: Dictionary = parsed

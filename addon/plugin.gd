@@ -7,7 +7,8 @@ const AUTOLOAD_SCRIPT := preload("gd_clerk.gd")
 var _export_plugin: EditorExportPlugin
 
 func _enter_tree() -> void:
-	add_autoload_singleton(AUTOLOAD_NAME, AUTOLOAD_SCRIPT.resource_path)
+	var source: Script = AUTOLOAD_SCRIPT
+	add_autoload_singleton(AUTOLOAD_NAME, source.resource_path)
 	_export_plugin = preload("export_plugin.gd").new()
 	add_export_plugin(_export_plugin)
 
