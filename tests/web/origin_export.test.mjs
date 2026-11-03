@@ -90,7 +90,7 @@ function serve(dir) {
 }
 
 test("web export reads location.origin and the old method call still fails", async () => {
-  const source = readFileSync(join(root, "addons/@aviorstudio_gd-clerk/gd_clerk.gd"), "utf8");
+  const source = readFileSync(join(root, "addon/gd_clerk.gd"), "utf8");
   assert.equal(source.includes('.get("origin")'), false);
   assert.equal(source.includes(".get('origin')"), false);
   assert.match(source, /\(location as Object\)\.origin/);
@@ -98,6 +98,7 @@ test("web export reads location.origin and the old method call still fails", asy
   try {
     cpSync(join(root, "tests/web/origin-harness"), project, { recursive: true });
     cpSync(join(root, "addons"), join(project, "addons"), { recursive: true });
+    cpSync(join(root, "addon"), join(project, "addons/@aviorstudio_gd-clerk"), { recursive: true });
     const out = exportWeb(project);
     const { server, port } = await serve(out);
     assert.notEqual(port, 3100);

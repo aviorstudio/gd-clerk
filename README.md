@@ -1,4 +1,4 @@
-<!-- Generated from private documentation source. Do not edit directly. Source SHA256: 9092d52e96ae5e654043af2872a84469bd4186988d3cdf8333c23b7b437d20f4 -->
+<!-- Generated from private documentation source. Do not edit directly. Source SHA256: ce9fc5cb840d20aef018755c03653bf3fae51d1624b44de11bcb5886f7e88bab -->
 
 # gd-clerk
 
@@ -6,7 +6,7 @@ Godot 4.7 addon for Clerk email-code sign-in and sign-up. Web exports use the pi
 
 The checked-in source uses this SDK; existing published releases retain their original packaged SDK.
 
-Install with gdam (`"@aviorstudio/gd-clerk": {"tag": "v0.3.0"}` in `gdam.json`), by copying `addons/@aviorstudio_gd-clerk/` into a Godot project, or by unzipping a release's `@aviorstudio_gd-clerk.zip` at the project root. The ZIP has 38 intentional entries: the 37 addon files in `scripts/package-allowlist.json`, including Godot `.uid` files and the pinned Clerk same-directory bundle, plus `PACKAGE_MANIFEST.json`. Enable the `GdClerk` plugin to add the optional `GdClerk` autoload and the web export injector. The script can also be instanced without the plugin; on native it must be inside the scene tree because requests run as child `HTTPRequest` nodes.
+Install with gdam (`"@aviorstudio/gd-clerk": {"tag": "v0.3.0"}` in `gdam.json`), by copying `addon/` into a Godot project, or by unzipping a release's `@aviorstudio_gd-clerk.zip` at the project root. The ZIP has 38 intentional entries: the 37 addon files in `scripts/package-allowlist.json`, including Godot `.uid` files and the pinned Clerk same-directory bundle, plus `PACKAGE_MANIFEST.json`. Enable the `GdClerk` plugin to add the optional `GdClerk` autoload and the web export injector. The script can also be instanced without the plugin; on native it must be inside the scene tree because requests run as child `HTTPRequest` nodes.
 
 ## Platforms
 

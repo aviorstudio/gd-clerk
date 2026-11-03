@@ -6,10 +6,10 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "../..");
-const bridgePath = join(root, "addons/@aviorstudio_gd-clerk/javascript/gd_clerk_bridge.js");
+const bridgePath = join(root, "addon/javascript/gd_clerk_bridge.js");
 const source = readFileSync(bridgePath, "utf8");
-const codes = JSON.parse(readFileSync(join(root, "addons/@aviorstudio_gd-clerk/observed_error_codes.json"), "utf8"));
-const limits = JSON.parse(readFileSync(join(root, "addons/@aviorstudio_gd-clerk/limits.json"), "utf8"));
+const codes = JSON.parse(readFileSync(join(root, "addon/observed_error_codes.json"), "utf8"));
+const limits = JSON.parse(readFileSync(join(root, "addon/limits.json"), "utf8"));
 
 function loadFactory() {
   const sandbox = { console, setTimeout, clearTimeout, atob: (v) => Buffer.from(v, "base64").toString("utf8") };

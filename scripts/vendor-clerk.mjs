@@ -5,7 +5,7 @@ import { fileURLToPath } from "node:url";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const check = process.argv.includes("--check");
-const dest = join(root, "addons/@aviorstudio_gd-clerk/javascript/clerk");
+const dest = join(root, "addon/javascript/clerk");
 const pkgRoot = join(root, "node_modules/@clerk/clerk-js");
 const lock = JSON.parse(readFileSync(join(root, "package-lock.json"), "utf8"));
 const locked = lock.packages["node_modules/@clerk/clerk-js"];

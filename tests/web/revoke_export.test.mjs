@@ -183,6 +183,7 @@ test("web export drives revoke through the Godot callback boundary", async () =>
   try {
     cpSync(join(root, "tests/web/revoke-harness"), project, { recursive: true });
     cpSync(join(root, "addons"), join(project, "addons"), { recursive: true });
+    cpSync(join(root, "addon"), join(project, "addons/@aviorstudio_gd-clerk"), { recursive: true });
     const out = exportWeb(project);
     const html = readFileSync(join(out, "index.html"), "utf8");
     assert.equal(html.includes(key), false);

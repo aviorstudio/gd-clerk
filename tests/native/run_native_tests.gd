@@ -26,7 +26,7 @@ class MemoryCredentialAdapter extends "res://addons/@aviorstudio_gd-session/src/
 		return values.get(key, "")
 
 
-const GdClerkScript := preload("res://addons/@aviorstudio_gd-clerk/gd_clerk.gd")
+const GdClerkScript := preload("res://addon/gd_clerk.gd")
 const CORRECT_CODE := "424242"
 const CALL_TIMEOUT_MS := 15000
 

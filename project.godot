@@ -9,4 +9,4 @@ config/description="Clerk email-code addon for web and native Godot builds."
 
 [editor_plugins]
 
-enabled=PackedStringArray("res://addons/@aviorstudio_gd-clerk/plugin.cfg")
+enabled=PackedStringArray("res://addon/plugin.cfg")

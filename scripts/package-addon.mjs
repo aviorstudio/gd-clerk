@@ -6,7 +6,7 @@ import { verifyZip } from "./verify-zip.mjs";
 import { FIXED_ZIP_STAMP } from "./zip-stamp.mjs";
 
 const root = new URL("..", import.meta.url).pathname;
-const addon = join(root, "addons/@aviorstudio_gd-clerk");
+const addon = join(root, "addon");
 const dist = join(root, "dist");
 mkdirSync(dist, { recursive: true });
 
