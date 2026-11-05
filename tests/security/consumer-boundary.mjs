@@ -19,7 +19,7 @@ const TEXT = /\.(gd|js|mjs|md|json|yml|yaml|cfg|html|txt|sh|tscn)$/;
 
 function walk(dir, acc = []) {
   for (const name of readdirSync(dir)) {
-    if (name === "node_modules" || name === "dist" || name === ".godot" || name === ".git") continue;
+    if (name === "node_modules" || name === "dist" || name === ".godot" || name === ".git" || name === ".artifacts") continue;
     const path = join(dir, name);
     const stat = statSync(path);
     if (stat.isDirectory()) {

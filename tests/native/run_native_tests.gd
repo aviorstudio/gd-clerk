@@ -1,6 +1,6 @@
 extends SceneTree
 ## Drives GdClerk natively through its public API against tests/native/fapi_fixture.py.
-## Run by scripts/run-godot-tests.sh with GD_CLERK_TEST_LOOPBACK=1 and
+## Run by tests/native/run_tests.sh with GD_CLERK_TEST_LOOPBACK=1 and
 ## GD_CLERK_FIXTURE_PORT set. Prints "ok <label>" per passing check and exits 1
 ## when any check fails.
 

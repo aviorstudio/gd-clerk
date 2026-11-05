@@ -1,8 +1,10 @@
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
+import { execFileSync } from "node:child_process";
 import { couplingHits } from "./consumer-boundary.mjs";
 
-const root = new URL("..", import.meta.url).pathname;
+const root = new URL("../..", import.meta.url).pathname;
+execFileSync(process.execPath, [join(root, "internal/vendor-clerk.mjs"), "--check"], { cwd: root, stdio: "inherit" });
 const bridge = readFileSync(join(root, "addon/javascript/gd_clerk_bridge.js"), "utf8");
 const forbidden = [
   "__internal_future",
@@ -36,7 +38,7 @@ if (!bridge.includes('getElementById(CAPTCHA_ELEMENT_ID)') && !bridge.includes('
 }
 function walk(dir, acc = []) {
   for (const name of readdirSync(dir)) {
-    if (name === "node_modules" || name === ".godot" || name === "dist") continue;
+    if (name === "node_modules" || name === ".godot" || name === "dist" || name === ".artifacts" || name === ".git") continue;
     const path = join(dir, name);
     const stat = statSync(path);
     if (stat.isDirectory()) walk(path, acc);

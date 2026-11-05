@@ -1,4 +1,4 @@
-<!-- Generated from private documentation source. Do not edit directly. Source SHA256: ce9fc5cb840d20aef018755c03653bf3fae51d1624b44de11bcb5886f7e88bab -->
+<!-- Generated from private documentation source. Do not edit directly. Source SHA256: 203534eda6376f60e18e3300a08e5466edb2e9b892833655b6a1e527fe992bd6 -->
 
 # gd-clerk
 
@@ -6,7 +6,7 @@ Godot 4.7 addon for Clerk email-code sign-in and sign-up. Web exports use the pi
 
 The checked-in source uses this SDK; existing published releases retain their original packaged SDK.
 
-Install with gdam (`"@aviorstudio/gd-clerk": {"tag": "v0.3.0"}` in `gdam.json`), by copying `addon/` into a Godot project, or by unzipping a release's `@aviorstudio_gd-clerk.zip` at the project root. The ZIP has 38 intentional entries: the 37 addon files in `scripts/package-allowlist.json`, including Godot `.uid` files and the pinned Clerk same-directory bundle, plus `PACKAGE_MANIFEST.json`. Enable the `GdClerk` plugin to add the optional `GdClerk` autoload and the web export injector. The script can also be instanced without the plugin; on native it must be inside the scene tree because requests run as child `HTTPRequest` nodes.
+Install with gdam (`"@aviorstudio/gd-clerk": {"tag": "v0.3.1"}` in `gdam.json`), by copying `addon/` into a Godot project, or by unzipping a release's `@aviorstudio_gd-clerk.zip` at the project root. The ZIP has 37 intentional entries: the 36 addon files in `package-allowlist.json`, including Godot `.uid` files and the pinned Clerk same-directory bundle, plus `PACKAGE_MANIFEST.json`. Enable the `GdClerk` plugin to add the optional `GdClerk` autoload and the web export injector. The script can also be instanced without the plugin; on native it must be inside the scene tree because requests run as child `HTTPRequest` nodes.
 
 ## Platforms
 
@@ -46,11 +46,11 @@ HTTP 429 and `too_many_requests`, `signup_rate_limit_exceeded`, `verification_co
 
 Vanilla `clerk.client.signIn` and `clerk.client.signUp` are the documented legacy resources. `SignInFuture` and `SignUpFuture` exist on the pinned types only as `__internal_future`, which framework hooks use. This addon does not call those methods, `emailCode`, `verifications`, or `finalize`.
 
-The browser files under `javascript/clerk/` are the exact `6.38.1` `clerk.browser.js` build and its same-directory chunks. They are not loaded from a floating CDN, and the export HTML does not parse that bundle before `configure`. After the project-supplied publishable key passes the existing checks, the bridge inserts the same-origin file and calls `load()` on the instance the bundle creates. `npm ci` plus `node scripts/vendor-clerk.mjs --check` verifies the lockfile integrity. The native backend has no SDK dependency.
+The browser files under `javascript/clerk/` are the exact `6.38.1` `clerk.browser.js` build and its same-directory chunks. They are not loaded from a floating CDN, and the export HTML does not parse that bundle before `configure`. After the project-supplied publishable key passes the existing checks, the bridge inserts the same-origin file and calls `load()` on the instance the bundle creates. `npm ci` plus `node internal/vendor-clerk.mjs --check` verifies the lockfile integrity. The native backend has no SDK dependency.
 
 ## Tests
 
-`mise run test` runs the JavaScript policy tests, the headless Godot unit tests, the native suite against `tests/native/fapi_fixture.py` (a standard-library loopback Frontend API that is accepted only with `GD_CLERK_TEST_LOOPBACK=1` and `127.0.0.1`), the browser fixture, and three web export regressions. The fixture is not Clerk; live email-code proof belongs to the consuming project.
+`make test` runs the JavaScript policy tests, the headless Godot unit tests, the native suite against `tests/native/fapi_fixture.py` (a standard-library loopback Frontend API that is accepted only with `GD_CLERK_TEST_LOOPBACK=1` and `127.0.0.1`), the browser fixture, and three web export regressions. The fixture is not Clerk; live email-code proof belongs to the consuming project.
 
 ## Inspector configuration
 
@@ -58,17 +58,16 @@ Create a `ClerkConfig` resource in the FileSystem dock and save it as a `.tres` 
 
 ## Contributor checks
 
-Install [mise](https://mise.jdx.dev/), then prepare the pinned development helpers and run the complete native gate:
+Install [mise](https://mise.jdx.dev/), then prepare the pinned cookbook and SDKs:
 
 ```sh
-git clone https://github.com/nicodes/tools.git .ci-tools
-git -C .ci-tools checkout --detach f7e243524ce2aa29f299e4c79db33001f72f4a30
-mise install
-mise run check
+make setup
+make build
+make test
 ```
 
-`mise.toml` owns tool versions and tasks. Engine and template downloads are checksum verified. `mise run build` packages the addon; `mise run test` runs its declared tests. The complete check also validates the installed artifact. Build and test receipts stay in `.artifacts/verification`.
+`make help` lists the available commands. `mise.toml` pins SDK versions; `cookbook.toml` declares package inputs and native tests. Shared automation comes from the exact `nicodes/tools` revision in `Makefile`. Engine and template downloads are checksum verified.
 
-## Contributor task interface
+`make build` packages the addon, validates its closed file manifest and checksums, and prepares any declared native export fixtures. `make test` runs all declared source, security and behavioral groups against the current source and prebuilt package. Individual groups are available as `make test:lint`, `make test:unit`, `make test:security`, and the integration or browser groups listed by `make help`. Tests do not prepare dependencies or rebuild the addon. Build and test receipts stay in `.artifacts/verification`.
 
-Contributor tool versions and task entry points live in the native Mise configuration. Use `mise run lint` for source checks, `mise run test` for the applicable behavioral tests, and `mise run check` for the complete supported gate. `mise run clean` removes declared generated outputs while preserving source, credentials and retained data. This package has no application development service.
+`make fmt` formats owned GDScript. `make clean` removes declared generated outputs while preserving source and retained data. This package has no application development service.

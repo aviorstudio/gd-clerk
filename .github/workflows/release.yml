@@ -1,165 +1,24 @@
+# Generated cookbook caller. Change recipe data and regenerate.
 name: Release
 'on':
   workflow_dispatch:
     inputs:
       tag:
-        description: Release tag that must match package.json
+        description: Exact tag that must match the native package version
+        type: string
         required: true
         default: v0.3.1
-        type: string
-permissions:
-  contents: read
+permissions: {}
 concurrency:
   group: release-${{ github.repository }}
   cancel-in-progress: false
 jobs:
-  guard:
-    name: Verify release
-    if: github.ref != 'refs/heads/main'
-    runs-on: ubuntu-24.04
-    timeout-minutes: 10
-    steps:
-    - name: Require main branch
-      run: echo "release only runs from main" && exit 1
-  test:
-    name: Test package
-    if: github.ref == 'refs/heads/main'
-    runs-on: ubuntu-24.04
-    timeout-minutes: 40
-    outputs:
-      commit: ${{ steps.identity.outputs.commit }}
-      zip_sha256: ${{ steps.package.outputs.zip_sha256 }}
-      tag: ${{ steps.identity.outputs.tag }}
-      version: ${{ steps.identity.outputs.version }}
-    steps:
-    - name: Check out source
-      uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
-      with:
-        ref: main
-        fetch-depth: 0
-        persist-credentials: false
-    - name: Set up development tools
-      uses: nicodes/tools/setup@a1c0321f3b4917a7e99eca42e241e46670f6e1e1
-      env:
-        GH_TOKEN: ${{ github.token }}
-      timeout-minutes: 5
-    - name: Require main
-      id: identity
-      env:
-        RELEASE_TAG: ${{ inputs.tag }}
-      run: |-
-        set -euo pipefail
-        git fetch origin main
-        commit="$(git rev-parse HEAD)"
-        origin="$(git rev-parse origin/main)"
-        test "$commit" = "$origin"
-        # A push between dispatch and checkout would test a newer commit
-        # than the one the run (and its OIDC token) is bound to.
-        test "$commit" = "$GITHUB_SHA"
-        RELEASE_REF="$GITHUB_REF" RELEASE_HEAD="$commit" RELEASE_ORIGIN_MAIN="$origin" node scripts/release-guard.mjs --main
-        RELEASE_COMMIT="$commit" node scripts/check-release-identity.mjs
-        {
-          echo "commit=$commit"
-          echo "tag=$RELEASE_TAG"
-          echo "version=${RELEASE_TAG#v}"
-        } >> "$GITHUB_OUTPUT"
-    - name: Check project
-      shell: bash
-      run: |-
-        set -euo pipefail
-        mise run check
-    - name: Package the closed addon and record provenance
-      id: package
-      env:
-        RELEASE_TAG: ${{ steps.identity.outputs.tag }}
-        RELEASE_COMMIT: ${{ steps.identity.outputs.commit }}
-      run: |-
-        set -euo pipefail
-        sha="$(awk '{print $1}' dist/@aviorstudio_gd-clerk.zip.sha256)"
-        node scripts/candidate-provenance.mjs --zip dist/@aviorstudio_gd-clerk.zip --commit "$RELEASE_COMMIT" --out dist/CANDIDATE.json
-        PACKAGE_SHA256="$sha" node scripts/release-notes.mjs --tag "$RELEASE_TAG" --commit "$RELEASE_COMMIT" --zip-sha256 "$sha" --out dist/RELEASE_NOTES.md
-        echo "zip_sha256=$sha" >> "$GITHUB_OUTPUT"
-    - name: Upload artifacts
-      uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
-      with:
-        name: gd-clerk-release
-        if-no-files-found: error
-        path: |
-          dist/@aviorstudio_gd-clerk.zip
-          dist/@aviorstudio_gd-clerk.zip.sha256
-          dist/@aviorstudio_gd-clerk.gdam.zip
-          dist/@aviorstudio_gd-clerk.gdam.zip.sha256
-          dist/PACKAGE_MANIFEST.json
-          dist/CANDIDATE.json
-          dist/RELEASE_NOTES.md
-        retention-days: 7
-        include-hidden-files: true
-    permissions:
-      contents: read
-      attestations: read
-    env:
-      MISE_GITHUB_TOKEN: ${{ github.token }}
-  publish:
-    name: Publish release
-    needs: test
-    if: needs.test.result == 'success' && github.ref == 'refs/heads/main'
-    runs-on: ubuntu-24.04
-    timeout-minutes: 15
+  release:
+    uses: nicodes/tools/.github/workflows/cookbook-addon-release.yml@ade449c3150fd5a9c86fb6ec21d8ae905d6a2754
     permissions:
       contents: write
       id-token: write
-    steps:
-    - name: Check out source
-      uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
-      with:
-        ref: ${{ needs.test.outputs.commit }}
-        fetch-depth: 0
-        persist-credentials: false
-    - name: Require the tested main commit
-      env:
-        RELEASE_COMMIT: ${{ needs.test.outputs.commit }}
-      run: |-
-        set -euo pipefail
-        git fetch origin main
-        origin="$(git rev-parse origin/main)"
-        test "$(git rev-parse HEAD)" = "$RELEASE_COMMIT"
-        test "$origin" = "$RELEASE_COMMIT"
-        RELEASE_REF="$GITHUB_REF" RELEASE_HEAD="$RELEASE_COMMIT" RELEASE_ORIGIN_MAIN="$origin" node scripts/release-guard.mjs --main
-    - name: Download artifacts
-      uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
-      with:
-        name: gd-clerk-release
-        path: dist
-    - name: Verify tested artifact identity
-      env:
-        PACKAGE_SHA256: ${{ needs.test.outputs.zip_sha256 }}
-      run: |-
-        set -euo pipefail
-        (cd dist && sha256sum --check --strict @aviorstudio_gd-clerk.zip.sha256)
-        node scripts/release-guard.mjs --checksum dist/@aviorstudio_gd-clerk.zip.sha256
-        actual="$(sha256sum dist/@aviorstudio_gd-clerk.zip | awk '{print $1}')"
-        test "$actual" = "$PACKAGE_SHA256"
-        node scripts/verify-zip.mjs dist/@aviorstudio_gd-clerk.zip
-    - name: Verify the gdam asset
-      run: |-
-        set -euo pipefail
-        (cd dist && sha256sum --check --strict @aviorstudio_gd-clerk.gdam.zip.sha256)
-    - name: Publish the exact tested ZIP
-      env:
-        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        RELEASE_TAG: ${{ needs.test.outputs.tag }}
-        RELEASE_COMMIT: ${{ needs.test.outputs.commit }}
-      run: |-
-        set -euo pipefail
-        test -n "${GH_TOKEN}"
-        test "$(git rev-parse HEAD)" = "$RELEASE_COMMIT"
-        if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
-          echo "release already exists; refusing to replace it"
-          exit 1
-        fi
-        gh release create "$RELEASE_TAG" dist/@aviorstudio_gd-clerk.zip dist/@aviorstudio_gd-clerk.zip.sha256 dist/@aviorstudio_gd-clerk.gdam.zip --target "$RELEASE_COMMIT" --title "gd-clerk $RELEASE_TAG" --notes-file dist/RELEASE_NOTES.md
-    - name: Publish addon
-      uses: aviorstudio/gdam-actions/publish@3a46007e296e60e15a4ad47727ad33046e52e6ea
-      with:
-        tag: ${{ needs.test.outputs.tag }}
-        asset: '@aviorstudio_gd-clerk.gdam.zip'
+    with:
+      tools-ref: ade449c3150fd5a9c86fb6ec21d8ae905d6a2754
+      mode: release
+      tag: ${{ inputs.tag }}
