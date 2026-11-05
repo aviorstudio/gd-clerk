@@ -1,47 +1,23 @@
+# Generated cookbook caller. Change recipe data and regenerate.
 name: Publish Addon
 'on':
   workflow_dispatch:
     inputs:
       tag:
-        description: Existing release tag to publish to gdam
-        required: true
+        description: Existing exact release tag to publish without rebuilding
         type: string
-permissions:
-  contents: read
+        required: true
+permissions: {}
+concurrency:
+  group: release-${{ github.repository }}
+  cancel-in-progress: false
 jobs:
-  publish:
-    name: Publish addon
-    if: github.ref == 'refs/heads/main' || github.ref == format('refs/tags/{0}', inputs.tag)
-    runs-on: ubuntu-24.04
-    timeout-minutes: 10
+  recover:
+    uses: nicodes/tools/.github/workflows/cookbook-addon-recovery.yml@62012942709763665a86c525fec6985c0a06ffaf
     permissions:
       contents: read
       id-token: write
-    steps:
-    - name: Check out source
-      uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
-      with:
-        fetch-depth: 0
-    - name: Verify the released gdam asset
-      env:
-        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        RELEASE_TAG: ${{ inputs.tag }}
-      run: |-
-        set -euo pipefail
-        commit="$(git rev-list -n 1 "$RELEASE_TAG")"
-        # The registry binds the publication to the commit this run checked
-        # out; fail here with a readable reason rather than at the registry.
-        test "$commit" = "$GITHUB_SHA"
-        RELEASE_COMMIT="$commit" node scripts/check-release-identity.mjs
-        mkdir -p dist
-        gh release download "$RELEASE_TAG" --dir dist --pattern '@aviorstudio_gd-clerk.gdam.zip'
-        python3 - <<'EOF'
-        import zipfile
-        names = zipfile.ZipFile("dist/@aviorstudio_gd-clerk.gdam.zip").namelist()
-        assert "plugin.cfg" in names and not any(n.startswith("addons/") for n in names), "not a flat gdam asset"
-        EOF
-    - name: Publish addon
-      uses: aviorstudio/gdam-actions/publish@3a46007e296e60e15a4ad47727ad33046e52e6ea
-      with:
-        tag: ${{ inputs.tag }}
-        asset: '@aviorstudio_gd-clerk.gdam.zip'
+    with:
+      tools-ref: 62012942709763665a86c525fec6985c0a06ffaf
+      mode: registry-recovery
+      tag: ${{ inputs.tag }}

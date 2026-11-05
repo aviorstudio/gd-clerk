@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
-root="$(cd "$(dirname "$0")/.." && pwd)"
+root="$(cd "$(dirname "$0")/../.." && pwd)"
 cd "$root"
 godot="${GODOT_BIN:-godot}"
 export TMPDIR="${TMPDIR:-/tmp}"
@@ -22,14 +22,14 @@ if [[ "$import_status" -ne 0 ]]; then
   cat "$log"
   exit "$import_status"
 fi
-node scripts/reject-godot-log.mjs "$log"
+node "${TOOLS_ROOT:?Run make setup}/helpers/addon-provenance.mjs" log "$log"
 : >"$log"
 set +e
 "$godot" --headless --path . --quit-after 1 --script res://tests/gdscript/run_gd_tests.gd >"$log" 2>&1
 test_status=$?
 set -e
 cat "$log"
-node scripts/reject-godot-log.mjs --require-ok "$log"
+node "${TOOLS_ROOT:?Run make setup}/helpers/addon-provenance.mjs" log --require-ok "$log"
 if [[ "$test_status" -ne 0 ]]; then
   exit "$test_status"
 fi
@@ -55,6 +55,6 @@ GD_CLERK_TEST_LOOPBACK=1 GD_CLERK_FIXTURE_PORT="$(cat "$port_file")" timeout 180
 native_status=$?
 set -e
 cat "$log"
-node scripts/reject-godot-log.mjs --require-ok "$log"
+node "${TOOLS_ROOT:?Run make setup}/helpers/addon-provenance.mjs" log --require-ok "$log"
 rm -f "$port_file"
 exit "$native_status"

@@ -9,10 +9,8 @@
   "scripts": {
     "test": "node --test tests/js/*.test.mjs",
     "test:browser": "node --test tests/browser/*.test.mjs",
-    "vendor": "node scripts/vendor-clerk.mjs",
-    "vendor:check": "node scripts/vendor-clerk.mjs --check",
-    "package": "node scripts/package-addon.mjs",
-    "scan": "node scripts/scan.mjs"
+    "vendor": "node internal/vendor-clerk.mjs",
+    "vendor:check": "node internal/vendor-clerk.mjs --check"
   },
   "dependencies": {
     "@clerk/clerk-js": "6.38.1"

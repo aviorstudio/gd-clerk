@@ -1,0 +1,87 @@
+version = 1
+recipe = "godot-addon"
+
+[package]
+format = "manifest"
+source = "addon"
+manifest = "package.files"
+archive = "dist/@aviorstudio_gd-clerk.zip"
+registry_archive = "dist/@aviorstudio_gd-clerk.gdam.zip"
+prefix = "addons/@aviorstudio_gd-clerk/"
+version_source = "package.json"
+allowlist = "package-allowlist.json"
+generated_directories = [".gdam"]
+script_uids = true
+
+[lint]
+required_paths = ["addon/plugin.cfg", "package.files", "package-allowlist.json", "package-provenance.json", "gdam.json", "gdam.lock"]
+
+[format]
+paths = ["addon", "tests"]
+
+[clean]
+paths = ["dist", ".artifacts/build", ".artifacts/godot", ".artifacts/godot-data", ".artifacts/godot-config", ".artifacts/tmp", ".artifacts/bin", ".artifacts/playwright", ".godot", "node_modules"]
+
+[node]
+packages = [{directory = ".", manager = "npm", build = "vendor:check", audit = true}]
+
+[components.addon_dependencies]
+mise_tool = "github:aviorstudio/gdam"
+sha256 = "0c24b5958d7663b0cdc52465f39f4481d1d3e92ec1c6221b9dcc5e7faa1ef634"
+destination = ".artifacts/bin/gdam"
+
+[components.browser]
+package = "."
+
+[[tests.unit]]
+runner = "node-test"
+path = "tests/js"
+pattern = "*.test.mjs"
+timeout = 300
+
+[[tests.integration]]
+runner = "bash"
+path = "tests/native/run_tests.sh"
+timeout = 300
+
+[[tests.integration]]
+runner = "node"
+path = "tests/editor/lifecycle.mjs"
+timeout = 300
+
+[[tests.e2e]]
+runner = "node-test"
+path = "tests/browser"
+pattern = "*.test.mjs"
+timeout = 300
+
+[[tests.e2e]]
+runner = "node-test"
+path = "tests/web/origin_export.test.mjs"
+timeout = 300
+
+[[tests.e2e]]
+runner = "node-test"
+path = "tests/web/configure_export.test.mjs"
+timeout = 300
+
+[[tests.e2e]]
+runner = "node-test"
+path = "tests/web/revoke_export.test.mjs"
+timeout = 300
+
+[[tests.security]]
+runner = "node"
+path = "tests/security/source.mjs"
+timeout = 300
+
+[publication]
+validation_timeout = 40
+publish_timeout = 15
+recovery_timeout = 10
+assets = ["archive", "checksum", "registry_archive"]
+mode = "tag"
+registry_auth = "oidc"
+tag_prefix = "v"
+initial = "first"
+provenance = "package-provenance.json"
