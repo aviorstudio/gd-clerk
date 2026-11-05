@@ -17,7 +17,7 @@ script_uids = true
 required_paths = ["addon/plugin.cfg", "package.files", "package-allowlist.json", "package-provenance.json", "gdam.json", "gdam.lock"]
 
 [format]
-paths = ["addon", "tests"]
+paths = ["addon/clerk_config.gd", "addon/clerk_native_backend.gd", "addon/clerk_policy.gd", "addon/clerk_result.gd", "addon/export_plugin.gd", "addon/gd_clerk.gd", "addon/html_export.gd", "addon/plugin.gd", "addon/session_state.gd", "tests/editor/lifecycle_probe/plugin.gd", "tests/gdscript/run_gd_tests.gd", "tests/native/run_native_tests.gd", "tests/web/configure-harness/boot.gd", "tests/web/origin-harness/origin_probe.gd", "tests/web/revoke-harness/boot.gd"]
 
 [clean]
 paths = ["dist", ".artifacts/build", ".artifacts/godot", ".artifacts/godot-data", ".artifacts/godot-config", ".artifacts/tmp", ".artifacts/bin", ".artifacts/playwright", ".godot", "node_modules"]
