@@ -85,3 +85,6 @@ registry_auth = "oidc"
 tag_prefix = "v"
 initial = "first"
 provenance = "package-provenance.json"
+
+[ci]
+timeout_minutes = 40
