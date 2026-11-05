@@ -13,11 +13,11 @@ concurrency:
   cancel-in-progress: false
 jobs:
   recover:
-    uses: nicodes/tools/.github/workflows/cookbook-addon-recovery.yml@29171802204d39c4ad70794078bfaaa485003531
+    uses: nicodes/tools/.github/workflows/cookbook-addon-recovery.yml@d475b54c402754a5a37a44fbd65328551995025c
     permissions:
       contents: read
       id-token: write
     with:
-      tools-ref: 29171802204d39c4ad70794078bfaaa485003531
+      tools-ref: d475b54c402754a5a37a44fbd65328551995025c
       mode: registry-recovery
       tag: ${{ inputs.tag }}
