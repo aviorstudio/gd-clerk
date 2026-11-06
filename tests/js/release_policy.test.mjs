@@ -107,6 +107,15 @@ test("gdam publication is trusted publishing with no registry secret", () => {
     writeFileSync(recipePath, changedRecipe);
     assert.throws(() => assertWorkflows(dir), /every native\/browser\/web export regression/);
     reset();
+    let manifestChanges = 0;
+    const flatOnlyRecipe = readFileSync(recipePath, "utf8").replace(/\bembedded_manifest\s*=\s*true/g, () => {
+      manifestChanges += 1;
+      return "embedded_manifest = false";
+    });
+    assert.equal(manifestChanges, 1, "the dual-payload control must change exactly one declared capability");
+    writeFileSync(recipePath, flatOnlyRecipe);
+    assert.throws(() => assertWorkflows(dir), /both assembled ZIP forms/);
+    reset();
     const projectPath = join(dir, "mise.toml");
     writeFileSync(projectPath, readFileSync(projectPath, "utf8").replace("sha256:cadd3204e728a35d3f13adb7fd0d7902636b79f6b95c40c265eb73b6c35329e4", "sha256:" + "0".repeat(64)));
     assert.throws(() => assertWorkflows(dir), /checksum-verified Godot/);
@@ -170,11 +179,11 @@ test("addon version is declared once per surface and agrees everywhere", () => {
   const pkg = JSON.parse(readFileSync(join(root, "package.json"), "utf8"));
   const cfg = readFileSync(join(root, "addon/plugin.cfg"), "utf8");
   const backend = readFileSync(join(root, "addon/clerk_native_backend.gd"), "utf8");
-  const recipe = JSON.parse(spawnSync("python3", ["-c", "import json,tomllib; print(json.dumps(tomllib.load(open(\"cookbook.toml\", \"rb\"))))"], { cwd: root, encoding: "utf8" }).stdout);
+  const recipe = JSON.parse(spawnSync("python3", ["-c", "import json,sys,tomllib; sys.path.insert(0,sys.argv[1]); from godot_addon import package_data; data=tomllib.load(open(\"cookbook.toml\", \"rb\")); data['package']=package_data(data); print(json.dumps(data))", join(process.env.TOOLS_ROOT, "cookbook")], { cwd: root, encoding: "utf8" }).stdout);
   const release = readFileSync(join(root, ".github/workflows/release.yml"), "utf8");
   assert.match(cfg, new RegExp(`\nversion="${pkg.version.replaceAll(".", "\\.")}"\n`));
   assert.match(backend, new RegExp(`const ADDON_VERSION := "${pkg.version.replaceAll(".", "\\.")}"`));
-  assert.equal(recipe.package.format, "manifest");
+  assert.equal(recipe.package.embedded_manifest, true);
   assert.equal(recipe.package.version_source, "package.json");
   assert.equal(recipe.package.allowlist, "package-allowlist.json");
   assert.equal(recipe.publication.provenance, "package-provenance.json");

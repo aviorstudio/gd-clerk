@@ -2,15 +2,8 @@ version = 1
 recipe = "godot-addon"
 
 [package]
-format = "manifest"
-source = "addon"
-manifest = "package.files"
+embedded_manifest = true
 archive = "dist/@aviorstudio_gd-clerk.zip"
-registry_archive = "dist/@aviorstudio_gd-clerk.gdam.zip"
-prefix = "addons/@aviorstudio_gd-clerk/"
-version_source = "package.json"
-allowlist = "package-allowlist.json"
-generated_directories = [".gdam"]
 script_uids = true
 
 [lint]
@@ -23,7 +16,7 @@ paths = ["addon/clerk_config.gd", "addon/clerk_native_backend.gd", "addon/clerk_
 paths = ["dist", ".artifacts/build", ".artifacts/godot", ".artifacts/godot-data", ".artifacts/godot-config", ".artifacts/tmp", ".artifacts/bin", ".artifacts/playwright", ".godot", "node_modules"]
 
 [node]
-packages = [{directory = ".", manager = "npm", build = "vendor:check", audit = true}]
+packages = [{directory = ".", manager = "npm", build = "vendor:check"}]
 
 [components.addon_dependencies]
 mise_tool = "github:aviorstudio/gdam"

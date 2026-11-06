@@ -9,14 +9,13 @@ export function assertProjectGate(root) {
   const readToml = (name) => JSON.parse(execFileSync("python3", ["-c",
     "import json,sys,tomllib; print(json.dumps(tomllib.load(open(sys.argv[1], 'rb'))))", join(root, name)], { encoding: "utf8" }));
   const pins = readToml("mise.toml");
-  const recipe = readToml("cookbook.toml");
-  recipe.tests = JSON.parse(execFileSync("python3", ["-c",
-    "import json,sys; sys.path.insert(0,sys.argv[1]); from configuration import expand_tests; print(json.dumps(expand_tests(json.load(sys.stdin))))",
-    join(process.env.TOOLS_ROOT, "cookbook")], { encoding: "utf8", input: JSON.stringify(recipe.tests) }));
+  const recipe = JSON.parse(execFileSync("python3", ["-c",
+    "import json,sys; sys.path.insert(0,sys.argv[1]); from configuration import expand_tests; from godot_addon import package_data; data=json.load(sys.stdin); data['tests']=expand_tests(data['tests']); data['package']=package_data(data); print(json.dumps(data))",
+    join(process.env.TOOLS_ROOT, "cookbook")], { encoding: "utf8", input: JSON.stringify(readToml("cookbook.toml")) }));
   assert.equal(pins.tasks, undefined, "SDK configuration must not contain a second task graph");
   assert.equal(recipe.recipe, "godot-addon");
-  assert.deepEqual(recipe.node.packages, [{ directory: ".", manager: "npm", build: "vendor:check", audit: true }], "project must retain frozen Node dependencies and dependency audit");
-  assert.equal(recipe.package.format, "manifest", "project must verify both assembled ZIP forms");
+  assert.deepEqual(recipe.node.packages, [{ directory: ".", manager: "npm", build: "vendor:check" }], "project must retain frozen Node dependencies and dependency audit");
+  assert.equal(recipe.package.embedded_manifest, true, "project must verify both assembled ZIP forms");
   assert.equal(recipe.package.archive, "dist/@aviorstudio_gd-clerk.zip");
   assert.equal(recipe.package.registry_archive, "dist/@aviorstudio_gd-clerk.gdam.zip");
   assert.equal(recipe.package.prefix, "addons/@aviorstudio_gd-clerk/");
