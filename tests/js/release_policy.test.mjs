@@ -97,7 +97,14 @@ test("gdam publication is trusted publishing with no registry secret", () => {
     mutate("ci.yml", (doc) => { job(doc).with["tools-ref"] = "0".repeat(40); });
     reset();
     const recipePath = join(dir, "cookbook.toml");
-    writeFileSync(recipePath, readFileSync(recipePath, "utf8").replace('path = "tests/web/revoke_export.test.mjs"', 'path = "tests/removed-web"'));
+    const recipeSource = readFileSync(recipePath, "utf8");
+    let pathChanges = 0;
+    const changedRecipe = recipeSource.replace(/\bpath\s*=\s*"tests\/web\/revoke_export\.test\.mjs"/g, () => {
+      pathChanges += 1;
+      return 'path = "tests/removed-web"';
+    });
+    assert.equal(pathChanges, 1, "the missing regression control must change exactly one declared path");
+    writeFileSync(recipePath, changedRecipe);
     assert.throws(() => assertWorkflows(dir), /every native\/browser\/web export regression/);
     reset();
     const projectPath = join(dir, "mise.toml");

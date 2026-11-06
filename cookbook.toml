@@ -51,24 +51,13 @@ timeout = 300
 
 [[tests.e2e]]
 runner = "node-test"
-path = "tests/browser"
-pattern = "*.test.mjs"
 timeout = 300
-
-[[tests.e2e]]
-runner = "node-test"
-path = "tests/web/origin_export.test.mjs"
-timeout = 300
-
-[[tests.e2e]]
-runner = "node-test"
-path = "tests/web/configure_export.test.mjs"
-timeout = 300
-
-[[tests.e2e]]
-runner = "node-test"
-path = "tests/web/revoke_export.test.mjs"
-timeout = 300
+cases = [
+  {path="tests/browser", pattern="*.test.mjs"},
+  {path="tests/web/origin_export.test.mjs"},
+  {path="tests/web/configure_export.test.mjs"},
+  {path="tests/web/revoke_export.test.mjs"},
+]
 
 [[tests.security]]
 runner = "node"
