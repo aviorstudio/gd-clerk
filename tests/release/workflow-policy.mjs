@@ -10,6 +10,9 @@ export function assertProjectGate(root) {
     "import json,sys,tomllib; print(json.dumps(tomllib.load(open(sys.argv[1], 'rb'))))", join(root, name)], { encoding: "utf8" }));
   const pins = readToml("mise.toml");
   const recipe = readToml("cookbook.toml");
+  recipe.tests = JSON.parse(execFileSync("python3", ["-c",
+    "import json,sys; sys.path.insert(0,sys.argv[1]); from configuration import expand_tests; print(json.dumps(expand_tests(json.load(sys.stdin))))",
+    join(process.env.TOOLS_ROOT, "cookbook")], { encoding: "utf8", input: JSON.stringify(recipe.tests) }));
   assert.equal(pins.tasks, undefined, "SDK configuration must not contain a second task graph");
   assert.equal(recipe.recipe, "godot-addon");
   assert.deepEqual(recipe.node.packages, [{ directory: ".", manager: "npm", build: "vendor:check", audit: true }], "project must retain frozen Node dependencies and dependency audit");
