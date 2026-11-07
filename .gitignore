@@ -14,3 +14,7 @@ __pycache__/
 addons/@aviorstudio_gd-session/
 addon/.gdam/
 /.ci-tools/
+
+# Authenticated native CLI projections; authored configuration is TOML.
+/addon/gdam.json
+/gdam.json

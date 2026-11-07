@@ -1,4 +1,4 @@
-<!-- Generated from private documentation source. Do not edit directly. Source SHA256: 203534eda6376f60e18e3300a08e5466edb2e9b892833655b6a1e527fe992bd6 -->
+<!-- Generated from private documentation source. Do not edit directly. Source SHA256: 1b81178ecd3d43058d057f8cc50993ac8ee35638b883532187c12723f7d8262b -->
 
 # gd-clerk
 
@@ -6,7 +6,7 @@ Godot 4.7 addon for Clerk email-code sign-in and sign-up. Web exports use the pi
 
 The checked-in source uses this SDK; existing published releases retain their original packaged SDK.
 
-Install with gdam (`"@aviorstudio/gd-clerk": {"tag": "v0.3.1"}` in `gdam.json`), by copying `addon/` into a Godot project, or by unzipping a release's `@aviorstudio_gd-clerk.zip` at the project root. The ZIP has 37 intentional entries: the 36 addon files in `package-allowlist.json`, including Godot `.uid` files and the pinned Clerk same-directory bundle, plus `PACKAGE_MANIFEST.json`. Enable the `GdClerk` plugin to add the optional `GdClerk` autoload and the web export injector. The script can also be instanced without the plugin; on native it must be inside the scene tree because requests run as child `HTTPRequest` nodes.
+Install with gdam (`addons."@aviorstudio/gd-clerk" = {tag = "v0.3.1"}` in `gdam.toml` with a TOML-aware gdam client), by copying `addon/` into a Godot project, or by unzipping a release's `@aviorstudio_gd-clerk.zip` at the project root. The ZIP has 37 intentional entries: the 36 addon files in `package-allowlist.toml`, including Godot `.uid` files and the pinned Clerk same-directory bundle, plus `PACKAGE_MANIFEST.json`. Enable the `GdClerk` plugin to add the optional `GdClerk` autoload and the web export injector. The script can also be instanced without the plugin; on native it must be inside the scene tree because requests run as child `HTTPRequest` nodes.
 
 ## Platforms
 
@@ -20,7 +20,7 @@ On native the Frontend API host must be `clerk.<domain>` or `<slug>.clerk.accoun
 
 The native backend holds the Frontend API client token for this device under the key `client_token`, through a credential adapter in the `@aviorstudio/gd-session` shape: `read_value(key)` and `write_value(key, value)` each return an object with `status` (`0` is OK, `1` is NOT_FOUND) and `value`. The default is gd-session's process-memory adapter, so a session lasts until the game exits. To restore sessions across launches, supply an adapter backed by the OS keyring (subclass gd-session's `credential_adapter.gd`); the addon never writes that token to disk itself, and it matches the adapter by those two methods rather than by class, because the game's copy of gd-session may not be this addon's copy. The token is kept after sign-out so the next sign-in reuses the client. It is cleared only when the Frontend API rejects it during session restore in `configure` (401 or 404) or returns an empty `Authorization` header; a rejected session elsewhere is reported as `SESSION_EXPIRED` and leaves the stored token in place.
 
-gd-clerk declares `@aviorstudio/gd-session` as a dependency in its own `gdam.json`; `gdam install` installs it beside gd-clerk (or nested under it when the project pins a different tag) and generates the `.gdam/deps.gd` through which gd-clerk reaches it.
+gd-clerk declares `@aviorstudio/gd-session` as a dependency in its source `gdam.toml`; `gdam install` installs it beside gd-clerk (or nested under it when the project pins a different tag) and generates the `.gdam/deps.gd` through which gd-clerk reaches it.
 
 ## API
 

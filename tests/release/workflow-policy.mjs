@@ -22,7 +22,7 @@ export function assertProjectGate(root) {
   assert.equal(recipe.package.script_uids, true);
   assert.equal(recipe.publication.mode, "tag", "release tag must match the native package version");
   assert.equal(recipe.publication.registry_auth, "oidc", "registry publication must use trusted OIDC identity");
-  assert.equal(recipe.publication.provenance, "package-provenance.json");
+  assert.equal(recipe.publication.provenance, "package-provenance.toml");
   const check = (suite, runner, path) => assert.ok(recipe.tests[suite]?.some((entry) => entry.runner === runner && entry.path === path), "project must retain every native/browser/web export regression: " + path);
   check("unit", "node-test", "tests/js");
   check("integration", "bash", "tests/native/run_tests.sh");
