@@ -1,0 +1,3 @@
+package = "addon"
+[addons."@aviorstudio/gd-session"]
+tag = "v0.0.4"

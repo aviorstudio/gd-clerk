@@ -7,7 +7,7 @@ archive = "dist/@aviorstudio_gd-clerk.zip"
 script_uids = true
 
 [lint]
-required_paths = ["addon/plugin.cfg", "package.files", "package-allowlist.json", "package-provenance.json", "gdam.json", "gdam.lock"]
+required_paths = ["addon/plugin.cfg", "package.files", "package-allowlist.toml", "package-provenance.toml", "gdam.toml", "gdam.lock"]
 
 [format]
 paths = ["addon/clerk_config.gd", "addon/clerk_native_backend.gd", "addon/clerk_policy.gd", "addon/clerk_result.gd", "addon/export_plugin.gd", "addon/gd_clerk.gd", "addon/html_export.gd", "addon/plugin.gd", "addon/session_state.gd", "tests/editor/lifecycle_probe/plugin.gd", "tests/gdscript/run_gd_tests.gd", "tests/native/run_native_tests.gd", "tests/web/configure-harness/boot.gd", "tests/web/origin-harness/origin_probe.gd", "tests/web/revoke-harness/boot.gd"]
@@ -66,7 +66,7 @@ mode = "tag"
 registry_auth = "oidc"
 tag_prefix = "v"
 initial = "first"
-provenance = "package-provenance.json"
+provenance = "package-provenance.toml"
 
 [ci]
 timeout_minutes = 40

@@ -1,0 +1,12 @@
+"name" = "gd-clerk"
+"candidate_schema" = "gd-clerk.candidate.v1"
+"description" = "Godot 4.7 addon for Clerk email one-time codes on web and native builds. Sign-in and sign-up stay separate. Web exports use the pinned browser SDK; native builds call the Clerk Frontend API directly and require the instance's Native API to be enabled."
+"archive" = "dist/@aviorstudio_gd-clerk.zip"
+"registry_archive" = "dist/@aviorstudio_gd-clerk.gdam.zip"
+"vendor" = "addon/javascript/clerk/VENDOR.json"
+"allowlist" = "package-allowlist.toml"
+"browser_entry" = "addons/@aviorstudio_gd-clerk/javascript/clerk/clerk.browser.js"
+"vendor_package" = "@clerk/clerk-js"
+"vendor_digest_field" = "clerk_browser_sha256"
+"vendor_version_field" = "clerk_version"
+"forbidden_token_parts" = [["local", "host:31", "00"], ["local", "host:31", "01"], ["local", "host:31", "02"], ["re", "vik"], ["agent", "mail"], ["CLERK_OTP_", "FROM"], ["RELEASE_", "TOKEN"]]

@@ -11,6 +11,7 @@ import { couplingHits, FORBIDDEN_COUPLING } from "../security/consumer-boundary.
 import { assertWorkflows } from "../release/workflow-policy.mjs";
 const sharedUrl = pathToFileURL(join(process.env.TOOLS_ROOT, "helpers/addon-provenance.mjs")).href;
 const shared = await import(sharedUrl);
+const { readSource } = await import(pathToFileURL(join(process.env.TOOLS_ROOT, "helpers/source-config.mjs")).href);
 const { FIXED_ZIP_STAMP, zipDosStamp, assertReleaseIdentity, godotLogProblems, assertChecksum, assertMainRef } = shared;
 
 
@@ -62,7 +63,7 @@ test("gdam publication is trusted publishing with no registry secret", () => {
   const reset = () => {
     for (const name of ["release.yml", "ci.yml", "request-merge.yml", "gdam-publish.yml"])
       copyFileSync(join(root, ".github/workflows", name), join(workflows, name));
-    for (const name of ["mise.toml", "cookbook.toml", "Makefile", "package-provenance.json"])
+    for (const name of ["mise.toml", "cookbook.toml", "Makefile", "package-provenance.toml"])
       copyFileSync(join(root, name), join(dir, name));
     cpSync(join(root, "tests"), join(dir, "tests"), { recursive: true });
     mkdirSync(join(dir, "addon"), { recursive: true });
@@ -185,8 +186,8 @@ test("addon version is declared once per surface and agrees everywhere", () => {
   assert.match(backend, new RegExp(`const ADDON_VERSION := "${pkg.version.replaceAll(".", "\\.")}"`));
   assert.equal(recipe.package.embedded_manifest, true);
   assert.equal(recipe.package.version_source, "package.json");
-  assert.equal(recipe.package.allowlist, "package-allowlist.json");
-  assert.equal(recipe.publication.provenance, "package-provenance.json");
+  assert.equal(recipe.package.allowlist, "package-allowlist.toml");
+  assert.equal(recipe.publication.provenance, "package-provenance.toml");
   assert.match(release, /workflow_dispatch/);
   assert.doesNotMatch(cfg, /unavailable/i);
 });
@@ -206,7 +207,7 @@ test("native backend never sends the publishable key and keeps the bridge untouc
 
 test("workflows keep the publish token narrow and releases manual", () => {
   assertWorkflows(root);
-  const allow = JSON.parse(readFileSync(join(root, "package-allowlist.json"), "utf8"));
+  const allow = readSource(join(root, "package-allowlist.toml"));
   assert.equal(allow.addon_files, 36);
   assert.equal(allow.zip_entries, 37);
   assert.equal(allow.files.length, 36);

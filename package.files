@@ -10,7 +10,7 @@ export_plugin.gd
 export_plugin.gd.uid
 gd_clerk.gd
 gd_clerk.gd.uid
-gdam.json
+gdam.toml
 html_export.gd
 html_export.gd.uid
 javascript/clerk/10_clerk.browser_6f5e2d_6.38.1.js
