@@ -61,9 +61,9 @@ test("gdam publication is trusted publishing with no registry secret", () => {
   const workflows = join(dir, ".github/workflows");
   mkdirSync(workflows, { recursive: true });
   const reset = () => {
-    for (const name of ["release.yml", "ci.yml", "request-merge.yml", "gdam-publish.yml"])
+    for (const name of ["release.yml", "ci.yml", "request-merge.yml", "gdam-publish.yml", "dependency-policy.yml"])
       copyFileSync(join(root, ".github/workflows", name), join(workflows, name));
-    for (const name of ["mise.toml", "cookbook.toml", "Makefile", "package-provenance.toml"])
+    for (const name of ["mise.toml", "cookbook.toml", ".gitattributes", "package-provenance.toml", ".github/dependency-policy.toml"])
       copyFileSync(join(root, name), join(dir, name));
     cpSync(join(root, "tests"), join(dir, "tests"), { recursive: true });
     mkdirSync(join(dir, "addon"), { recursive: true });
@@ -96,6 +96,7 @@ test("gdam publication is trusted publishing with no registry secret", () => {
     mutate("ci.yml", (doc) => { job(doc).if = "false"; });
     mutate("ci.yml", (doc) => { job(doc).with.base = "a".repeat(40); });
     mutate("ci.yml", (doc) => { job(doc).with["tools-ref"] = "0".repeat(40); });
+    mutate("ci.yml", (doc) => { job(doc).with["cookbook-ref"] = "0".repeat(40); });
     reset();
     const recipePath = join(dir, "cookbook.toml");
     const recipeSource = readFileSync(recipePath, "utf8");
@@ -180,7 +181,7 @@ test("addon version is declared once per surface and agrees everywhere", () => {
   const pkg = JSON.parse(readFileSync(join(root, "package.json"), "utf8"));
   const cfg = readFileSync(join(root, "addon/plugin.cfg"), "utf8");
   const backend = readFileSync(join(root, "addon/clerk_native_backend.gd"), "utf8");
-  const recipe = JSON.parse(spawnSync("python3", ["-c", "import json,sys,tomllib; sys.path.insert(0,sys.argv[1]); from godot_addon import package_data; data=tomllib.load(open(\"cookbook.toml\", \"rb\")); data['package']=package_data(data); print(json.dumps(data))", join(process.env.TOOLS_ROOT, "cookbook")], { cwd: root, encoding: "utf8" }).stdout);
+  const recipe = JSON.parse(spawnSync("python3", ["-c", "import json,sys,tomllib; sys.path.insert(0,sys.argv[1]); from godot_addon import package_data; data=tomllib.load(open(\"cookbook.toml\", \"rb\")); data['package']=package_data(data); print(json.dumps(data))", join(process.env.COOKBOOK_ROOT, "cookbook")], { cwd: root, encoding: "utf8" }).stdout);
   const release = readFileSync(join(root, ".github/workflows/release.yml"), "utf8");
   assert.match(cfg, new RegExp(`\nversion="${pkg.version.replaceAll(".", "\\.")}"\n`));
   assert.match(backend, new RegExp(`const ADDON_VERSION := "${pkg.version.replaceAll(".", "\\.")}"`));

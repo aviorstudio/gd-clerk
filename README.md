@@ -1,4 +1,4 @@
-<!-- Generated from private documentation source. Do not edit directly. Source SHA256: 1b81178ecd3d43058d057f8cc50993ac8ee35638b883532187c12723f7d8262b -->
+<!-- Generated from private documentation source. Do not edit directly. Source SHA256: 2ebcebe3a5fa0ffbe1c016d60c6ebea883eabf0ff37ee48a1ca981995cdd5ae6 -->
 
 # gd-clerk
 
@@ -50,7 +50,7 @@ The browser files under `javascript/clerk/` are the exact `6.38.1` `clerk.browse
 
 ## Tests
 
-`make test` runs the JavaScript policy tests, the headless Godot unit tests, the native suite against `tests/native/fapi_fixture.py` (a standard-library loopback Frontend API that is accepted only with `GD_CLERK_TEST_LOOPBACK=1` and `127.0.0.1`), the browser fixture, and three web export regressions. The fixture is not Clerk; live email-code proof belongs to the consuming project.
+`mise run test` runs the JavaScript policy tests, the headless Godot unit tests, the native suite against `tests/native/fapi_fixture.py` (a standard-library loopback Frontend API that is accepted only with `GD_CLERK_TEST_LOOPBACK=1` and `127.0.0.1`), the browser fixture, and three web export regressions. The fixture is not Clerk; live email-code proof belongs to the consuming project.
 
 ## Inspector configuration
 
@@ -61,13 +61,13 @@ Create a `ClerkConfig` resource in the FileSystem dock and save it as a `.tres` 
 Install [mise](https://mise.jdx.dev/), then prepare the pinned cookbook and SDKs:
 
 ```sh
-make setup
-make build
-make test
+mise run setup
+mise run build
+mise run test
 ```
 
-`make help` lists the available commands. `mise.toml` pins SDK versions; `cookbook.toml` declares package inputs and native tests. Shared automation comes from the exact `nicodes/tools` revision in `Makefile`. Engine and template downloads are checksum verified.
+`mise run help` lists the available commands. `mise.toml` pins SDK versions; `cookbook.toml` declares package inputs and native tests. Shared recipes come from the exact `nicodes/cookbook` revision in the generated `mise.toml` task block. Engine and template downloads are checksum verified.
 
-`make build` packages the addon, validates its closed file manifest and checksums, and prepares any declared native export fixtures. `make test` runs all declared source, security and behavioral groups against the current source and prebuilt package. Individual groups are available as `make test:lint`, `make test:unit`, `make test:security`, and the integration or browser groups listed by `make help`. Tests do not prepare dependencies or rebuild the addon. Build and test receipts stay in `.artifacts/verification`.
+`mise run build` packages the addon, validates its closed file manifest and checksums, and prepares any declared native export fixtures. `mise run test` runs all declared source, security and behavioral groups against the current source and prebuilt package. Individual groups are available as `mise run test:lint`, `mise run test:unit`, `mise run test:security`, and the integration or browser groups listed by `mise run help`. Tests do not prepare dependencies or rebuild the addon. Build and test receipts stay in `.artifacts/verification`.
 
-`make fmt` formats owned GDScript. `make clean` removes declared generated outputs while preserving source and retained data. This package has no application development service.
+`mise run fmt` formats owned GDScript. `mise run clean` removes declared generated outputs while preserving source and retained data. This package has no application development service.

@@ -11,7 +11,7 @@ const zip = process.argv[2] || join(root, "dist/@aviorstudio_gd-clerk.zip");
 const godot = process.env.GODOT_BIN || "godot";
 const project = join("/tmp", `gd-clerk-lifecycle-${process.pid}`);
 
-execFileSync("python3", [join(process.env.TOOLS_ROOT, "cookbook/manifest_addon.py"), "verify"], { cwd: root, stdio: "inherit" });
+execFileSync("python3", [join(process.env.COOKBOOK_ROOT, "cookbook/manifest_addon.py"), "verify"], { cwd: root, stdio: "inherit" });
 rmSync(project, { recursive: true, force: true });
 mkdirSync(join(project, "config"), { recursive: true });
 mkdirSync(join(project, "xdg"), { recursive: true });
@@ -23,7 +23,7 @@ if (unpacked.status !== 0) {
 cpSync(join(root, "tests/editor/lifecycle_probe"), join(project, "addons/lifecycle_probe"), { recursive: true });
 // The installed addon reaches @aviorstudio/gd-session through the deps file
 // gdam install generates, and the zip carries neither. The fixture project
-// takes both from this repository's own install (make setup / CI), where
+// takes both from this repository's own install (mise run setup / CI), where
 // gdam resolved gd-session to the same hoisted address.
 cpSync(join(root, "addons/@aviorstudio_gd-session"), join(project, "addons/@aviorstudio_gd-session"), { recursive: true });
 cpSync(join(root, "addon/.gdam"), join(project, "addons/@aviorstudio_gd-clerk/.gdam"), { recursive: true });
