@@ -1,2 +1,6 @@
 # Preserve upstream vendor bytes, including upstream whitespace.
 addon/javascript/clerk/*.js -whitespace
+# BEGIN GENERATED COOKBOOK SOURCE ATTRIBUTES v1
+/mise.toml -text
+/cookbook.toml -text
+# END GENERATED COOKBOOK SOURCE ATTRIBUTES v1

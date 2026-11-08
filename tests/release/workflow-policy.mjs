@@ -11,8 +11,7 @@ export function assertProjectGate(root) {
   const pins = readToml("mise.toml");
   const recipe = JSON.parse(execFileSync("python3", ["-c",
     "import json,sys; sys.path.insert(0,sys.argv[1]); from configuration import expand_tests; from godot_addon import package_data; data=json.load(sys.stdin); data['tests']=expand_tests(data['tests']); data['package']=package_data(data); print(json.dumps(data))",
-    join(process.env.TOOLS_ROOT, "cookbook")], { encoding: "utf8", input: JSON.stringify(readToml("cookbook.toml")) }));
-  assert.equal(pins.tasks, undefined, "SDK configuration must not contain a second task graph");
+    join(process.env.COOKBOOK_ROOT, "cookbook")], { encoding: "utf8", input: JSON.stringify(readToml("cookbook.toml")) }));
   assert.equal(recipe.recipe, "godot-addon");
   assert.deepEqual(recipe.node.packages, [{ directory: ".", manager: "npm", build: "vendor:check" }], "project must retain frozen Node dependencies and dependency audit");
   assert.equal(recipe.package.embedded_manifest, true, "project must verify both assembled ZIP forms");
@@ -39,26 +38,30 @@ export function assertProjectGate(root) {
     GODOT_BINARY_CHECKSUM: "sha256:cadd3204e728a35d3f13adb7fd0d7902636b79f6b95c40c265eb73b6c35329e4",
     GODOT_TEMPLATES_CHECKSUM: "sha256:f298490b8d44d934be425a5a65a51bf15f422428b229a06a6e11d9ffea248011"
   }, "project must retain checksum-verified Godot engine/templates");
+  execFileSync("python3", ["-c",
+    "import sys; from pathlib import Path; sys.path.insert(0,sys.argv[1]); import generate,sdk_identity; root=Path(sys.argv[2]); generate.check_entrypoint(root,sdk_identity.source_identity(root)['revision'])",
+    join(process.env.COOKBOOK_ROOT, "cookbook"), root], { encoding: "utf8" });
   return recipe;
 }
 
 export function assertWorkflows(root) {
   assertProjectGate(root);
   if (existsSync(join(root, ".github/workflows/e2e.yml"))) throw new Error("e2e workflow must not live in this repository");
-  const makefile = readFileSync(join(root, "Makefile"), "utf8");
-  const revision = /^COOKBOOK_REF := ([a-f0-9]{40})$/m.exec(makefile)?.[1];
+  const cookbook = process.env.COOKBOOK_ROOT;
+  if (!cookbook) throw new Error("run mise run setup before workflow policy assertions");
+  const revision = JSON.parse(execFileSync("python3", ["-c",
+    "import json,sys; from pathlib import Path; sys.path.insert(0,sys.argv[1]); import mise_entrypoint; print(json.dumps(mise_entrypoint.read(Path(sys.argv[2]))['revision']))",
+    join(cookbook, "cookbook"), root], { encoding: "utf8" }));
   if (!revision) throw new Error("complete native gate requires a full source pin");
-  const tools = process.env.TOOLS_ROOT;
-  if (!tools) throw new Error("run make setup before workflow policy assertions");
   const expected = JSON.parse(execFileSync("python3", ["-c",
     "import json,sys; from pathlib import Path; sys.path.insert(0,sys.argv[1]); import generate; print(json.dumps(generate.workflow_files(Path(sys.argv[2]),sys.argv[3])))",
-    join(tools, "cookbook"), root, revision], { encoding: "utf8" }));
+    join(cookbook, "cookbook"), root, revision], { encoding: "utf8" }));
   if (!expected[".github/workflows/gdam-publish.yml"]) throw new Error("trusted publishing must retain exact-tag recovery");
   for (const [name, text] of Object.entries(expected)) {
     if (readFileSync(join(root, name), "utf8") !== text) throw new Error("complete native gate and publication callers must match the pinned cookbook: " + name);
     const doc = parse(text);
     for (const job of Object.values(doc.jobs ?? {})) {
-      if (job.steps !== undefined || !/^nicodes\/tools\/\.github\/workflows\/[^@]+@[a-f0-9]{40}$/.test(job.uses ?? ""))
+      if (job.steps !== undefined || !/^nicodes\/cookbook\/\.github\/workflows\/[^@]+@[a-f0-9]{40}$/.test(job.uses ?? ""))
         throw new Error("all project workflow jobs must use pinned cookbook entrypoints");
     }
     for (const token of [...FORBIDDEN_COUPLING, "GDAM_SECRET_KEY", "secret-key", "live-e2e", "e2e-evidence", "ACCEPTED", "docs/E2E_ACCEPTANCE.md", "check-release-rules.mjs"])
