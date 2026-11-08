@@ -61,9 +61,9 @@ test("gdam publication is trusted publishing with no registry secret", () => {
   const workflows = join(dir, ".github/workflows");
   mkdirSync(workflows, { recursive: true });
   const reset = () => {
-    for (const name of ["release.yml", "ci.yml", "request-merge.yml", "gdam-publish.yml"])
+    for (const name of ["release.yml", "ci.yml", "request-merge.yml", "gdam-publish.yml", "dependency-policy.yml"])
       copyFileSync(join(root, ".github/workflows", name), join(workflows, name));
-    for (const name of ["mise.toml", "cookbook.toml", ".gitattributes", "package-provenance.toml"])
+    for (const name of ["mise.toml", "cookbook.toml", ".gitattributes", "package-provenance.toml", ".github/dependency-policy.toml"])
       copyFileSync(join(root, name), join(dir, name));
     cpSync(join(root, "tests"), join(dir, "tests"), { recursive: true });
     mkdirSync(join(dir, "addon"), { recursive: true });

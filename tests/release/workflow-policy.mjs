@@ -61,7 +61,9 @@ export function assertWorkflows(root) {
     if (readFileSync(join(root, name), "utf8") !== text) throw new Error("complete native gate and publication callers must match the pinned cookbook: " + name);
     const doc = parse(text);
     for (const job of Object.values(doc.jobs ?? {})) {
-      if (job.steps !== undefined || !/^nicodes\/cookbook\/\.github\/workflows\/[^@]+@[a-f0-9]{40}$/.test(job.uses ?? ""))
+      const workflow = job.steps === undefined && /^nicodes\/cookbook\/\.github\/workflows\/[^@]+@[a-f0-9]{40}$/.test(job.uses ?? "");
+      const result = job.uses === undefined && job.steps?.length === 1 && job.steps[0].uses === `nicodes/cookbook/ci-result@${revision}`;
+      if (!workflow && !result)
         throw new Error("all project workflow jobs must use pinned cookbook entrypoints");
     }
     for (const token of [...FORBIDDEN_COUPLING, "GDAM_SECRET_KEY", "secret-key", "live-e2e", "e2e-evidence", "ACCEPTED", "docs/E2E_ACCEPTANCE.md", "check-release-rules.mjs"])
