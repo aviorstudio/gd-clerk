@@ -1,5 +1,6 @@
 # Generated cookbook caller. Change recipe data and regenerate.
-name: Publish Addon
+name: Recover addon publication
+run-name: "Recover addon publication · ${{ inputs.tag }}"
 'on':
   workflow_dispatch:
     inputs:
@@ -13,11 +14,11 @@ concurrency:
   cancel-in-progress: false
 jobs:
   recover:
-    uses: nicodes/cookbook/.github/workflows/cookbook-addon-recovery.yml@77d7bfa24cf0ec35a2de7585d48797b64f41cbb3
+    uses: nicodes/cookbook/.github/workflows/cookbook-addon-recovery.yml@d641e584b4c1a48428e2ba00025bcfaaa128fe62
     permissions:
       contents: read
       id-token: write
     with:
-      cookbook-ref: 77d7bfa24cf0ec35a2de7585d48797b64f41cbb3
+      cookbook-ref: d641e584b4c1a48428e2ba00025bcfaaa128fe62
       mode: registry-recovery
       tag: ${{ inputs.tag }}
