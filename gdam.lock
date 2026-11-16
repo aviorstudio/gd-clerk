@@ -21,7 +21,7 @@
         {
           "path": "addons/@aviorstudio_gd-session",
           "required_by": [
-            "gdam.json"
+            "gdam.toml"
           ]
         }
       ]
