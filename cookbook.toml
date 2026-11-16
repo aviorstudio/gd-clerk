@@ -20,7 +20,7 @@ packages = [{directory = ".", manager = "npm", build = "vendor:check"}]
 
 [components.addon_dependencies]
 mise_tool = "github:aviorstudio/gdam"
-sha256 = "0c24b5958d7663b0cdc52465f39f4481d1d3e92ec1c6221b9dcc5e7faa1ef634"
+sha256 = "9b4ee0fe4e54f588e67624f876e17dc4fb2681eab3d047ded268b27340688b5b"
 destination = ".artifacts/bin/gdam"
 
 [components.browser]

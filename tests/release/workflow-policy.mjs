@@ -31,8 +31,8 @@ export function assertProjectGate(root) {
     check("e2e", "node-test", `tests/web/${name}_export.test.mjs`);
   check("security", "node", "tests/security/source.mjs");
   assert.deepEqual(recipe.components.browser, { package: "." });
-  assert.deepEqual(recipe.components.addon_dependencies, { mise_tool: "github:aviorstudio/gdam", sha256: "0c24b5958d7663b0cdc52465f39f4481d1d3e92ec1c6221b9dcc5e7faa1ef634", destination: ".artifacts/bin/gdam" });
-  assert.equal(pins.tools["github:aviorstudio/gdam"].version, "v0.1.5", "registry SDK version must match the reviewed installer");
+  assert.deepEqual(recipe.components.addon_dependencies, { mise_tool: "github:aviorstudio/gdam", sha256: "9b4ee0fe4e54f588e67624f876e17dc4fb2681eab3d047ded268b27340688b5b", destination: ".artifacts/bin/gdam" });
+  assert.equal(pins.tools["github:aviorstudio/gdam"].version, "v0.2.3", "registry SDK version must match the reviewed installer");
   assert.deepEqual(Object.fromEntries(["GODOT_VERSION", "GODOT_EXPECTED_VERSION", "GODOT_BINARY_CHECKSUM", "GODOT_TEMPLATES_CHECKSUM"].map((key) => [key, pins.env[key]])), {
     GODOT_VERSION: "4.7.2", GODOT_EXPECTED_VERSION: "4.7.2.stable.official.ed1daf0bf",
     GODOT_BINARY_CHECKSUM: "sha256:cadd3204e728a35d3f13adb7fd0d7902636b79f6b95c40c265eb73b6c35329e4",
