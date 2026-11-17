@@ -61,7 +61,7 @@ test("gdam publication is trusted publishing with no registry secret", () => {
   const workflows = join(dir, ".github/workflows");
   mkdirSync(workflows, { recursive: true });
   const reset = () => {
-    for (const name of ["release.yml", "ci.yml", "request-merge.yml", "gdam-publish.yml", "dependency-policy.yml"])
+    for (const name of ["release.yml", "build-and-test.yml", "merge-pr.yml", "recover-addon.yml", "dependency-policy.yml"])
       copyFileSync(join(root, ".github/workflows", name), join(workflows, name));
     for (const name of ["mise.toml", "cookbook.toml", ".gitattributes", "package-provenance.toml", ".github/dependency-policy.toml"])
       copyFileSync(join(root, name), join(dir, name));
@@ -81,7 +81,7 @@ test("gdam publication is trusted publishing with no registry secret", () => {
   try {
     reset();
     assert.doesNotThrow(() => assertWorkflows(dir));
-    for (const name of ["release.yml", "gdam-publish.yml"]) {
+    for (const name of ["release.yml", "recover-addon.yml"]) {
       mutate(name, (doc) => { delete job(doc).permissions["id-token"]; });
       mutate(name, (doc) => { doc.permissions["id-token"] = "write"; });
       mutate(name, (doc) => { job(doc).with["registry-key"] = "unreviewed-secret"; });
@@ -89,14 +89,14 @@ test("gdam publication is trusted publishing with no registry secret", () => {
       mutate(name, (doc) => { job(doc).uses = job(doc).uses.replace(/@[a-f0-9]{40}$/, "@" + "0".repeat(40)); });
       mutate(name, (doc) => { job(doc).with.source = "unbound-run-commit"; });
     }
-    mutate("ci.yml", (doc) => { job(doc).permissions["id-token"] = "write"; });
+    mutate("build-and-test.yml", (doc) => { job(doc).permissions["id-token"] = "write"; });
     mutate("release.yml", (doc) => { job(doc).secrets = { GDAM_SECRET_KEY: "x" }; });
-    mutate("gdam-publish.yml", (doc) => { job(doc).steps = [{ uses: "aviorstudio/gdam-actions/install@" + "a".repeat(40) }]; });
-    mutate("ci.yml", (doc) => { job(doc).uses = "nicodes/tools/.github/workflows/lint-only.yml@" + "a".repeat(40); });
-    mutate("ci.yml", (doc) => { job(doc).if = "false"; });
-    mutate("ci.yml", (doc) => { job(doc).with.base = "a".repeat(40); });
-    mutate("ci.yml", (doc) => { job(doc).with["tools-ref"] = "0".repeat(40); });
-    mutate("ci.yml", (doc) => { job(doc).with["cookbook-ref"] = "0".repeat(40); });
+    mutate("recover-addon.yml", (doc) => { job(doc).steps = [{ uses: "aviorstudio/gdam-actions/install@" + "a".repeat(40) }]; });
+    mutate("build-and-test.yml", (doc) => { job(doc).uses = "nicodes/tools/.github/workflows/lint-only.yml@" + "a".repeat(40); });
+    mutate("build-and-test.yml", (doc) => { job(doc).if = "false"; });
+    mutate("build-and-test.yml", (doc) => { job(doc).with.base = "a".repeat(40); });
+    mutate("build-and-test.yml", (doc) => { job(doc).with["tools-ref"] = "0".repeat(40); });
+    mutate("build-and-test.yml", (doc) => { job(doc).with["cookbook-ref"] = "0".repeat(40); });
     reset();
     const recipePath = join(dir, "cookbook.toml");
     const recipeSource = readFileSync(recipePath, "utf8");
