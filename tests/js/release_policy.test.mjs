@@ -61,7 +61,7 @@ test("gdam publication is trusted publishing with no registry secret", () => {
   const workflows = join(dir, ".github/workflows");
   mkdirSync(workflows, { recursive: true });
   const reset = () => {
-    for (const name of ["release.yml", "build-and-test.yml", "merge-pr.yml", "recover-addon.yml", "dependency-policy.yml"])
+    for (const name of ["release.yml", "build-and-test.yml", "merge-pr.yml", "recovery.yml", "dependency-policy.yml"])
       copyFileSync(join(root, ".github/workflows", name), join(workflows, name));
     for (const name of ["mise.toml", "cookbook.toml", ".gitattributes", "package-provenance.toml", ".github/dependency-policy.toml"])
       copyFileSync(join(root, name), join(dir, name));
@@ -81,7 +81,7 @@ test("gdam publication is trusted publishing with no registry secret", () => {
   try {
     reset();
     assert.doesNotThrow(() => assertWorkflows(dir));
-    for (const name of ["release.yml", "recover-addon.yml"]) {
+    for (const name of ["release.yml", "recovery.yml"]) {
       mutate(name, (doc) => { delete job(doc).permissions["id-token"]; });
       mutate(name, (doc) => { doc.permissions["id-token"] = "write"; });
       mutate(name, (doc) => { job(doc).with["registry-key"] = "unreviewed-secret"; });
@@ -91,7 +91,7 @@ test("gdam publication is trusted publishing with no registry secret", () => {
     }
     mutate("build-and-test.yml", (doc) => { job(doc).permissions["id-token"] = "write"; });
     mutate("release.yml", (doc) => { job(doc).secrets = { GDAM_SECRET_KEY: "x" }; });
-    mutate("recover-addon.yml", (doc) => { job(doc).steps = [{ uses: "aviorstudio/gdam-actions/install@" + "a".repeat(40) }]; });
+    mutate("recovery.yml", (doc) => { job(doc).steps = [{ uses: "aviorstudio/gdam-actions/install@" + "a".repeat(40) }]; });
     mutate("build-and-test.yml", (doc) => { job(doc).uses = "nicodes/tools/.github/workflows/lint-only.yml@" + "a".repeat(40); });
     mutate("build-and-test.yml", (doc) => { job(doc).if = "false"; });
     mutate("build-and-test.yml", (doc) => { job(doc).with.base = "a".repeat(40); });
