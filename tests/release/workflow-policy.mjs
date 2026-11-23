@@ -56,7 +56,7 @@ export function assertWorkflows(root) {
   const expected = JSON.parse(execFileSync("python3", ["-c",
     "import json,sys; from pathlib import Path; sys.path.insert(0,sys.argv[1]); import generate; print(json.dumps(generate.workflow_files(Path(sys.argv[2]),sys.argv[3])))",
     join(cookbook, "cookbook"), root, revision], { encoding: "utf8" }));
-  if (!expected[".github/workflows/recovery.yml"]) throw new Error("trusted publishing must retain exact-tag recovery");
+  if (existsSync(join(root, ".github/workflows/recovery.yml"))) throw new Error("publication has one Release workflow");
   for (const [name, text] of Object.entries(expected)) {
     if (readFileSync(join(root, name), "utf8") !== text) throw new Error("complete native gate and publication callers must match the pinned cookbook: " + name);
     const doc = parse(text);
@@ -70,10 +70,8 @@ export function assertWorkflows(root) {
       if (text.includes(token)) throw new Error("workflow contains forbidden coupling or registry secret: " + token);
   }
   const release = parse(readFileSync(join(root, ".github/workflows/release.yml"), "utf8"));
-  const recovery = parse(readFileSync(join(root, ".github/workflows/recovery.yml"), "utf8"));
-  for (const doc of [release, recovery]) {
-    assert.deepEqual(Object.keys(doc.on ?? {}), ["workflow_dispatch"], "publication must remain manual");
-    assert.equal(Object.values(doc.jobs).some((job) => job.permissions?.["id-token"] === "write"), true, "trusted publication requires narrow job id-token: write");
-    assert.equal(doc.permissions?.["id-token"], undefined, "id-token must be granted only to the publishing jobs");
-  }
+  assert.deepEqual(Object.keys(release.on ?? {}), ["workflow_dispatch"], "publication must remain manual");
+  assert.deepEqual(Object.keys(release.jobs), ["release"], "new versions use the trusted publisher");
+  assert.equal(release.jobs.release.permissions?.["id-token"], "write", "trusted publication requires narrow job id-token: write");
+  assert.equal(release.permissions?.["id-token"], undefined, "id-token must be granted only to the publishing job");
 }

@@ -60,7 +60,6 @@ timeout = 300
 [publication]
 validation_timeout = 40
 publish_timeout = 15
-recovery_timeout = 10
 assets = ["archive", "checksum", "registry_archive"]
 mode = "tag"
 registry_auth = "oidc"
