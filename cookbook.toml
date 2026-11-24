@@ -68,4 +68,5 @@ initial = "first"
 provenance = "package-provenance.toml"
 
 [ci]
+single_job = true
 timeout_minutes = 40
