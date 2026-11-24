@@ -16,13 +16,13 @@ concurrency:
 jobs:
   release:
     name: Release
-    uses: nicodes/cookbook/.github/workflows/release-addon-oidc.yml@bb884b740ce0e347080001c5fdc722edaa1ea090
+    uses: nicodes/cookbook/.github/workflows/release-addon-oidc.yml@cfa5fe4222b25f58534314aff03da36eb0d3be59
     permissions:
       contents: write
       actions: read
       pull-requests: read
       id-token: write
     with:
-      cookbook-ref: bb884b740ce0e347080001c5fdc722edaa1ea090
+      cookbook-ref: cfa5fe4222b25f58534314aff03da36eb0d3be59
       mode: release
       tag: ${{ inputs.tag }}
