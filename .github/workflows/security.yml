@@ -1,0 +1,46 @@
+# Generated cookbook caller. Change recipe data and regenerate.
+name: Security
+run-name: "Security · ${{ github.event.schedule || github.event_name }}"
+'on':
+  schedule:
+    - cron: "9 2 * * *"
+  workflow_dispatch:
+permissions: {}
+concurrency:
+  group: security-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  security:
+    name: Security
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 110
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - name: Prepare
+        timeout-minutes: 20
+        uses: nicodes/cookbook/prepare@cfa5fe4222b25f58534314aff03da36eb0d3be59
+        with:
+          cookbook-ref: cfa5fe4222b25f58534314aff03da36eb0d3be59
+          source: ${{ github.sha }}
+          advisories: run
+      - name: Build
+        timeout-minutes: 40
+        uses: nicodes/cookbook/build@cfa5fe4222b25f58534314aff03da36eb0d3be59
+      - name: Audit
+        timeout-minutes: 40
+        uses: nicodes/cookbook/security@cfa5fe4222b25f58534314aff03da36eb0d3be59
+      - name: Finish
+        if: always()
+        timeout-minutes: 5
+        uses: nicodes/cookbook/finish@cfa5fe4222b25f58534314aff03da36eb0d3be59
+        with:
+          status: ${{ job.status }}
+      - name: Report failure
+        if: failure()
+        timeout-minutes: 5
+        run: python3 "$TOOLS_ROOT/helpers/report-failure.py"
+        env:
+          GH_TOKEN: ${{ github.token }}
