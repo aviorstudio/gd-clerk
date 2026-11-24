@@ -78,6 +78,7 @@ test("gdam publication is trusted publishing with no registry secret", () => {
     assert.throws(() => assertWorkflows(dir), /complete native gate|publishing|publication|id-token/);
   };
   const job = (doc) => Object.values(doc.jobs)[0];
+  const inputs = (doc) => job(doc).with ?? job(doc).steps[0].with;
   try {
     reset();
     assert.doesNotThrow(() => assertWorkflows(dir));
@@ -92,9 +93,9 @@ test("gdam publication is trusted publishing with no registry secret", () => {
     mutate("release.yml", (doc) => { job(doc).steps = [{ uses: "aviorstudio/gdam-actions/install@" + "a".repeat(40) }]; });
     mutate("build-and-test.yml", (doc) => { job(doc).uses = "nicodes/tools/.github/workflows/lint-only.yml@" + "a".repeat(40); });
     mutate("build-and-test.yml", (doc) => { job(doc).if = "false"; });
-    mutate("build-and-test.yml", (doc) => { job(doc).with.base = "a".repeat(40); });
-    mutate("build-and-test.yml", (doc) => { job(doc).with["tools-ref"] = "0".repeat(40); });
-    mutate("build-and-test.yml", (doc) => { job(doc).with["cookbook-ref"] = "0".repeat(40); });
+    mutate("build-and-test.yml", (doc) => { inputs(doc).base = "a".repeat(40); });
+    mutate("build-and-test.yml", (doc) => { inputs(doc)["tools-ref"] = "0".repeat(40); });
+    mutate("build-and-test.yml", (doc) => { inputs(doc)["cookbook-ref"] = "0".repeat(40); });
     reset();
     const recipePath = join(dir, "cookbook.toml");
     const recipeSource = readFileSync(recipePath, "utf8");
