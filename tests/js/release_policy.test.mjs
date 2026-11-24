@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { copyFileSync, cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { copyFileSync, cpSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, dirname } from "node:path";
 import { test } from "node:test";
@@ -61,7 +61,7 @@ test("gdam publication is trusted publishing with no registry secret", () => {
   const workflows = join(dir, ".github/workflows");
   mkdirSync(workflows, { recursive: true });
   const reset = () => {
-    for (const name of ["release.yml", "build-and-test.yml", "dependency-policy.yml"])
+    for (const name of readdirSync(join(root, ".github/workflows")).filter((file) => file.endsWith(".yml")))
       copyFileSync(join(root, ".github/workflows", name), join(workflows, name));
     for (const name of ["mise.toml", "cookbook.toml", ".gitattributes", "package-provenance.toml", ".github/dependency-policy.toml"])
       copyFileSync(join(root, name), join(dir, name));

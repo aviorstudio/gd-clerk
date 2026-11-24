@@ -64,7 +64,9 @@ export function assertWorkflows(root) {
       const workflow = job.steps === undefined && /^nicodes\/cookbook\/\.github\/workflows\/[^@]+@[a-f0-9]{40}$/.test(job.uses ?? "");
       const result = job.uses === undefined && job.steps?.length === 1 && job.steps[0].uses === `nicodes/cookbook/ci-result@${revision}`;
       const single = job.uses === undefined && job.steps?.length === 4 && ["prepare", "build", "test", "finish"].every((action, index) => job.steps[index].uses === `nicodes/cookbook/${action}@${revision}`);
-      const security = job.uses === undefined && job.steps?.length === 4 && ["prepare", "build", "security", "finish"].every((action, index) => job.steps[index].uses === `nicodes/cookbook/${action}@${revision}`);
+      const security = job.uses === undefined && job.steps?.length === 5
+        && ["prepare", "build", "security", "finish"].every((action, index) => job.steps[index].uses === `nicodes/cookbook/${action}@${revision}`)
+        && job.steps[4].uses === undefined && job.steps[4].run === 'python3 "$TOOLS_ROOT/helpers/report-failure.py"';
       if (!workflow && !result && !single && !security)
         throw new Error("all project workflow jobs must use pinned cookbook entrypoints");
     }
